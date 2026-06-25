@@ -1,0 +1,9 @@
+<library path="quadruped_controller">
+    <class name="quadruped_controller/QuadrupedController" 
+           type="quadruped_controller::QuadrupedController"
+           base_class_type="controller_interface::ControllerInterface">
+        <description>
+            Quadruped Controller.
+        </description>
+    </class>
+</library>
