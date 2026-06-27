@@ -2,10 +2,14 @@
 #define STATEFREESTAND_H
 
 #include "quadruped_controller/FSM/FSMState.h"
+#include "quadruped_controller/common/mathTypes.h"
 
+#include <memory>
+#include <vector>
 namespace quadruped_controller
 {
 
+class QuadrupedRobot;
 struct CtrlComponent;
 
 class StateFreeStand : public FSMState
@@ -19,7 +23,20 @@ class StateFreeStand : public FSMState
     FSMStateName checkChange() override;
 
   private:
-    CtrlComponent &ctrl_component_;
+    std::shared_ptr<QuadrupedRobot> &robot_model_;
+
+    void calc_body_target(float roll, float pitch, float yaw, float height);
+
+    float roll_max_, roll_min_;
+    float pitch_max_, pitch_min_;
+    float yaw_max_, yaw_min_;
+    float height_max_, height_min_;
+
+    std::vector<Eigen::VectorXd> init_joint_pos_;
+    std::vector<Eigen::VectorXd> target_joint_pos_;
+
+    SE3 fr_init_pos_;
+    std::vector<SE3> init_foot_pos_;
 };
 
 } // namespace quadruped_controller
