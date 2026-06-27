@@ -34,9 +34,15 @@ void StateFixedStand::exit()
 
 FSMStateName StateFixedStand::checkChange()
 {
-    if (loop_count_ > settle_time_)
-        return FSMStateName::FREESTAND; // 站稳后 → 自由站立
-    return FSMStateName::INVALID;
+    switch (ctrl_interfaces_.control_inputs_.command)
+    {
+    case 1:
+        return FSMStateName::PASSIVE;
+    case 4:
+        return FSMStateName::FREESTAND;
+    default:
+        return FSMStateName::FIXEDSTAND;
+    }
 }
 
 } // namespace quadruped_controller

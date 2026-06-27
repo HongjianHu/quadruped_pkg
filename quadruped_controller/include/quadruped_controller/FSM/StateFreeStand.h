@@ -33,6 +33,7 @@ class StateFreeStand : public FSMState
     float height_max_, height_min_;
 
     std::vector<Eigen::VectorXd> init_joint_pos_;
+    std::vector<Eigen::VectorXd> init_joint_torque_;
     std::vector<Eigen::VectorXd> target_joint_pos_;
 
     SE3 fr_init_pos_;

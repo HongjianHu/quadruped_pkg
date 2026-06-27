@@ -22,9 +22,19 @@ void StateFreeStand::enter()
     {
         return;
     }
+
+    init_joint_torque_.assign(4, Eigen::VectorXd::Zero(3));
+
     for (std::size_t i = 0; i < 12; ++i)
     {
-        ctrl_interfaces_.joint_torque_command_interface_[i].get().set_value(0.0);
+        const int leg = static_cast<int>(i / 3);
+        const int joint = static_cast<int>(i % 3);
+        if (i < ctrl_interfaces_.joint_effort_state_interface_.size())
+        {
+            init_joint_torque_[leg][joint] = ctrl_interfaces_.joint_effort_state_interface_[i].get().get_value();
+        }
+
+        ctrl_interfaces_.joint_torque_command_interface_[i].get().set_value(init_joint_torque_[leg][joint]);
         ctrl_interfaces_.joint_velocity_command_interface_[i].get().set_value(0.0);
         ctrl_interfaces_.joint_kp_command_interface_[i].get().set_value(100.0);
         ctrl_interfaces_.joint_kd_command_interface_[i].get().set_value(5.0);
@@ -54,6 +64,7 @@ void StateFreeStand::run(const rclcpp::Time & /*time*/, const rclcpp::Duration &
     {
         return;
     }
+
     calc_body_target(invNormalize(ctrl_interfaces_.control_inputs_.lx, roll_min_, roll_max_),
                      invNormalize(ctrl_interfaces_.control_inputs_.ly, pitch_min_, pitch_max_),
                      invNormalize(ctrl_interfaces_.control_inputs_.rx, yaw_min_, yaw_max_),
@@ -104,12 +115,16 @@ void StateFreeStand::calc_body_target(float roll, float pitch, float yaw, float 
 
     for (int leg = 0; leg < 4; ++leg)
     {
-        const Eigen::VectorXd &q_full = target_joint_pos_[leg];
+        const Eigen::VectorXd &leg_q = target_joint_pos_[leg];
 
         for (int j = 0; j < 3; ++j)
         {
             const int idx = leg * 3 + j;
-            ctrl_interfaces_.joint_position_command_interface_[idx].get().set_value(q_full(idx));
+            ctrl_interfaces_.joint_position_command_interface_[idx].get().set_value(leg_q[j]);
+            if (leg < static_cast<int>(init_joint_torque_.size()))
+            {
+                ctrl_interfaces_.joint_torque_command_interface_[idx].get().set_value(init_joint_torque_[leg][j]);
+            }
         }
     }
 }

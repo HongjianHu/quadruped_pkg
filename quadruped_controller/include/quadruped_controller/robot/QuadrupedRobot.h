@@ -1,6 +1,7 @@
 #ifndef QUADRUPEDROBOT_H
 #define QUADRUPEDROBOT_H
 
+#include <array>
 #include <memory>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
@@ -56,6 +57,8 @@ class QuadrupedRobot
   private:
     CtrlInterfaces &ctrl_interfaces_;
     std::vector<std::shared_ptr<RobotLeg>> robot_legs_;
+    std::vector<std::array<int, 3>> leg_q_indices_;
+    std::vector<std::array<int, 3>> leg_v_indices_;
 
     // Pinocchio 模型（只有一份，四条腿共享引用）
     pinocchio::Model model_;

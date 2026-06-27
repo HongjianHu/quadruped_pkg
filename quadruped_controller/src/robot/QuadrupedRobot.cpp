@@ -2,6 +2,8 @@
 
 #include <pinocchio/multibody/data.hpp>
 
+#include <stdexcept>
+
 namespace quadruped_controller
 {
 
@@ -9,32 +11,47 @@ QuadrupedRobot::QuadrupedRobot(CtrlInterfaces &ctrl_interfaces, const std::strin
                                const std::vector<std::string> &feet_names, const std::string &base_name)
     : ctrl_interfaces_(ctrl_interfaces)
 {
+    (void)base_name;
+
     pinocchio::urdf::buildModelFromXML(robot_description, model_);
     data_fr_ = pinocchio::Data(model_);
     data_fl_ = pinocchio::Data(model_);
     data_rr_ = pinocchio::Data(model_);
     data_rl_ = pinocchio::Data(model_);
 
-    std::vector<std::string> leg_joint_names[4];
-    // 腿顺序：FR=0, FL=1, RR=2, RL=3
-    // 关节名格式：{fr,fl,rr,rl}_{hip,thigh,calf}_joint
+    const std::array<std::array<std::string, 3>, 4> leg_joint_names = {{
+        {"FR_hip_joint", "FR_thigh_joint", "FR_calf_joint"},
+        {"FL_hip_joint", "FL_thigh_joint", "FL_calf_joint"},
+        {"RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"},
+        {"RL_hip_joint", "RL_thigh_joint", "RL_calf_joint"},
+    }};
 
-    for (auto &name : model_.names)
+    leg_q_indices_.resize(4);
+    leg_v_indices_.resize(4);
+
+    // 腿顺序：FR=0, FL=1, RR=2, RL=3
+    // 这里必须按关节名查询 Pinocchio 的 q/v 索引，不能假设它等于 controller/YAML 的顺序。
+    for (int leg = 0; leg < 4; ++leg)
     {
-        for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 3; ++j)
         {
-            std::string prefix = (i == 0 ? "FR" : i == 1 ? "FL" : i == 2 ? "RR" : "RL");
-            if (name.find(prefix + "_") == 0 && name.find("_joint") != std::string::npos)
+            const std::string &joint_name = leg_joint_names[leg][j];
+            if (!model_.existJointName(joint_name))
             {
-                leg_joint_names[i].push_back(name);
+                throw std::runtime_error("Pinocchio model is missing joint: " + joint_name);
             }
+
+            const pinocchio::JointIndex joint_id = model_.getJointId(joint_name);
+            leg_q_indices_[leg][j] = model_.idx_qs[joint_id];
+            leg_v_indices_[leg][j] = model_.idx_vs[joint_id];
         }
     }
+
     // 3. 创建四条腿(腿的顺序不应该是觉得顺序，后面可以优化一下)
     for (int i = 0; i < 4; ++i)
     {
         std::vector<pinocchio::JointIndex> joint_ids;
-        for (auto &jn : leg_joint_names[i])
+        for (const auto &jn : leg_joint_names[i])
         {
             if (model_.existJointName(jn))
                 joint_ids.push_back(model_.getJointId(jn));
@@ -66,15 +83,19 @@ void QuadrupedRobot::update()
     {
         for (int j = 0; j < 3; ++j)
         {
-            int idx = 3 * leg + j;
+            const int idx = 3 * leg + j;
             current_joint_pos_[leg][j] = ctrl_interfaces_.joint_position_state_interface_[idx].get().get_value();
             current_joint_vel_[leg][j] = ctrl_interfaces_.joint_velocity_state_interface_[idx].get().get_value();
         }
     }
 
+    q_full_.setZero();
     for (int leg = 0; leg < 4; ++leg)
     {
-        q_full_.segment(3 * leg, 3) = current_joint_pos_[leg];
+        for (int j = 0; j < 3; ++j)
+        {
+            q_full_[leg_q_indices_[leg][j]] = current_joint_pos_[leg][j];
+        }
     }
 }
 
@@ -108,9 +129,14 @@ Vec3 QuadrupedRobot::getFeet2BVelocities(int index) const
 {
     Eigen::MatrixXd J = robot_legs_[index]->calcJaco(q_full_);
     // v_foot = J * q̇_full
-    Eigen::VectorXd qd_full = Eigen::VectorXd::Zero(model_.nq);
+    Eigen::VectorXd qd_full = Eigen::VectorXd::Zero(model_.nv);
     for (int leg = 0; leg < 4; ++leg)
-        qd_full.segment(leg * 3, 3) = current_joint_vel_[leg];
+    {
+        for (int j = 0; j < 3; ++j)
+        {
+            qd_full[leg_v_indices_[leg][j]] = current_joint_vel_[leg][j];
+        }
+    }
     return J * qd_full;
 }
 
@@ -125,7 +151,15 @@ std::vector<Eigen::VectorXd> QuadrupedRobot::getQ(const std::vector<SE3> &foot_p
 {
     std::vector<Eigen::VectorXd> result;
     for (int i = 0; i < 4; ++i)
-        result.push_back(robot_legs_[i]->calcQ(foot_poses[i], q_full_));
+    {
+        const Eigen::VectorXd q_solution = robot_legs_[i]->calcQ(foot_poses[i], q_full_);
+        Eigen::VectorXd leg_q = Eigen::VectorXd::Zero(3);
+        for (int j = 0; j < 3; ++j)
+        {
+            leg_q[j] = q_solution[leg_q_indices_[i][j]];
+        }
+        result.push_back(leg_q);
+    }
     return result;
 }
 Vec12 QuadrupedRobot::getQ(const Vec34 &foot_positions) const
@@ -137,20 +171,30 @@ Vec12 QuadrupedRobot::getQ(const Vec34 &foot_positions) const
         target.translation() = foot_positions.col(i);
         Eigen::VectorXd qi = robot_legs_[i]->calcQ(target, q_full_);
         // 只取本腿的 3 个关节
-        q.segment(i * 3, 3) = qi.segment(i * 3, 3);
+        for (int j = 0; j < 3; ++j)
+        {
+            q[i * 3 + j] = qi[leg_q_indices_[i][j]];
+        }
     }
     return q;
 }
 
 Vec12 QuadrupedRobot::getQd(const std::vector<SE3> &foot_poses, const Vec34 &foot_vels)
 {
+    (void)foot_poses;
+
     Vec12 qd;
     // v = J * q̇  =>  q̇ = J^{-1} * v
     for (int i = 0; i < 4; ++i)
     {
         Eigen::MatrixXd J = robot_legs_[i]->calcJaco(q_full_); // 3 * model_nv
-        Eigen::VectorXd sol = J.colPivHouseholderQr().solve(foot_vels.col(i));
-        qd.segment(i * 3, 3) = sol;
+        Eigen::MatrixXd leg_jacobian(3, 3);
+        for (int j = 0; j < 3; ++j)
+        {
+            leg_jacobian.col(j) = J.col(leg_v_indices_[i][j]);
+        }
+
+        qd.segment(i * 3, 3) = leg_jacobian.colPivHouseholderQr().solve(foot_vels.col(i));
     }
     return qd;
 }
