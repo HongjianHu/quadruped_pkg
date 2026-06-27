@@ -3,15 +3,17 @@
 
 #include "quadruped_controller/FSM/FSMState.h"
 
-namespace quadruped_controller {
+namespace quadruped_controller
+{
 
-class StatePassive : public FSMState {
-public:
-  explicit StatePassive(CtrlInterfaces &ctrl_interfaces);
+class StatePassive : public FSMState
+{
+  public:
+    explicit StatePassive(CtrlInterfaces &ctrl_interfaces);
 
-  void enter() override;
-  void run(const rclcpp::Time &time, const rclcpp::Duration &period) override;
-  void exit() override;
+    void enter() override;
+    void run(const rclcpp::Time &time, const rclcpp::Duration &period) override;
+    void exit() override;
 };
 
 } // namespace quadruped_controller

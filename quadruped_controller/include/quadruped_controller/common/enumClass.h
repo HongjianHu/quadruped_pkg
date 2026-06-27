@@ -1,26 +1,42 @@
 #ifndef ENUMCLASS_H
 #define ENUMCLASS_H
 
-namespace quadruped_controller {
+namespace quadruped_controller
+{
 
-enum class FSMStateName {
-  // EXIT,
-  INVALID,
-  PASSIVE,
-  FIXEDDOWN,
-  FIXEDSTAND,
-  FREESTAND,
-  TROTTING,
+enum class FSMStateName
+{
+    // EXIT,
+    INVALID,
+    PASSIVE,
+    FIXEDDOWN,
+    FIXEDSTAND,
+    FREESTAND,
+    TROTTING,
 
-  SWINGTEST,
-  BALANCETEST,
+    SWINGTEST,
+    BALANCETEST,
 };
 
-enum class FSMMode { NORMAL, CHANGE };
+enum class FSMMode
+{
+    NORMAL,
+    CHANGE
+};
 
-enum class FrameType { BODY, HIP, GLOBAL };
+enum class FrameType
+{
+    BODY,
+    HIP,
+    GLOBAL
+};
 
-enum class WaveStatus { STANCE_ALL, SWING_ALL, WAVE_ALL };
+enum class WaveStatus
+{
+    STANCE_ALL,
+    SWING_ALL,
+    WAVE_ALL
+};
 
 } // namespace quadruped_controller
 

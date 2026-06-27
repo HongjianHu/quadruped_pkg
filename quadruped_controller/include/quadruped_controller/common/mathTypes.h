@@ -5,7 +5,8 @@
 #include <pinocchio/spatial/motion.hpp>
 #include <pinocchio/spatial/se3.hpp>
 
-namespace quadruped_controller {
+namespace quadruped_controller
+{
 
 using SE3 = pinocchio::SE3Tpl<double>;
 using Motion = pinocchio::MotionTpl<double>;
@@ -40,19 +41,22 @@ using Vec34 = Eigen::Matrix<double, 3, 4>;
 // ========================
 // 工具函数
 // ========================
-inline Vec34 vec12ToVec34(Vec12 vec12) {
-  Vec34 vec34;
-  for (int i = 0; i < 4; ++i)
-    vec34.col(i) = vec12.segment(3 * i, 3);
-  return vec34;
+inline Vec34 vec12ToVec34(Vec12 vec12)
+{
+    Vec34 vec34;
+    for (int i = 0; i < 4; ++i)
+        vec34.col(i) = vec12.segment(3 * i, 3);
+    return vec34;
 }
 
-inline Vec12 vec34ToVec12(Vec34 vec34) {
-  Vec12 vec12;
-  for (int i = 0; i < 4; ++i) {
-    vec12.segment(3 * i, 3) = vec34.col(i);
-  }
-  return vec12;
+inline Vec12 vec34ToVec12(Vec34 vec34)
+{
+    Vec12 vec12;
+    for (int i = 0; i < 4; ++i)
+    {
+        vec12.segment(3 * i, 3) = vec34.col(i);
+    }
+    return vec12;
 }
 
 } // namespace quadruped_controller

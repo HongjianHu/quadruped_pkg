@@ -1,21 +1,27 @@
 #include "quadruped_controller/FSM/StatePassive.h"
 
-namespace quadruped_controller {
+namespace quadruped_controller
+{
 
 StatePassive::StatePassive(CtrlInterfaces &ctrl_interfaces)
-    : FSMState(FSMStateName::PASSIVE, "PASSIVE", ctrl_interfaces) {}
-
-void StatePassive::enter() {
-  for (auto &cmd : ctrl_interfaces_.joint_torque_command_interface_)
-    cmd.get().set_value(0.0);
+    : FSMState(FSMStateName::PASSIVE, "PASSIVE", ctrl_interfaces)
+{
 }
 
-void StatePassive::run(const rclcpp::Time & /*time*/,
-                       const rclcpp::Duration & /*period*/) {
-  for (auto &cmd : ctrl_interfaces_.joint_torque_command_interface_)
-    cmd.get().set_value(0.0);
+void StatePassive::enter()
+{
+    for (auto &cmd : ctrl_interfaces_.joint_torque_command_interface_)
+        cmd.get().set_value(0.0);
 }
 
-void StatePassive::exit() {}
+void StatePassive::run(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+{
+    for (auto &cmd : ctrl_interfaces_.joint_torque_command_interface_)
+        cmd.get().set_value(0.0);
+}
+
+void StatePassive::exit()
+{
+}
 
 } // namespace quadruped_controller

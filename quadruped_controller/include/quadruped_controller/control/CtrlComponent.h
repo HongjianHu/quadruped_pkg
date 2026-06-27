@@ -6,21 +6,23 @@
 #include "quadruped_controller/robot/QuadrupedRobot.h"
 #include <memory>
 
-namespace quadruped_controller {
+namespace quadruped_controller
+{
 
 class QuadrupedRobot;
 class KalmanFilterEstimate;
 class BalanceCtrl;
 class WaveGenerator;
 
-struct CtrlComponent {
+struct CtrlComponent
+{
 
-  std::shared_ptr<QuadrupedRobot> robot_model_;
-  std::shared_ptr<KalmanFilterEstimate> estimator_;
-  std::shared_ptr<BalanceCtrl> balance_ctrl_;
-  std::shared_ptr<WaveGenerator> wave_generator_;
+    std::shared_ptr<QuadrupedRobot> robot_model_;
+    std::shared_ptr<KalmanFilterEstimate> estimator_;
+    std::shared_ptr<BalanceCtrl> balance_ctrl_;
+    std::shared_ptr<WaveGenerator> wave_generator_;
 
-  CtrlComponent() = default;
+    CtrlComponent() = default;
 };
 
 } // namespace quadruped_controller
