@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>quadruped_mujoco_hardware</name>
+  <version>0.0.0</version>
+  <description>MuJoCo hardware interface for quadruped ros2_control.</description>
+  <maintainer email="3120240810@bit.edu.cn">robot</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

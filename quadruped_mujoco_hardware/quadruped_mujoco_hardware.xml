@@ -1,0 +1,10 @@
+<library path="quadruped_mujoco_hardware">
+  <class
+    name="quadruped_mujoco_hardware/QuadrupedMujocoHardware"
+    type="quadruped_mujoco_hardware::QuadrupedMujocoHardware"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Embedded MuJoCo SystemInterface for quadruped ros2_control.
+    </description>
+  </class>
+</library>

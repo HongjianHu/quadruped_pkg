@@ -35,6 +35,19 @@ quadruped_controller:
       - 0.3
       - 1.31
       - -2.8
+    stand_pos:
+      - 0.0
+      - 0.9
+      - -1.8
+      - 0.0
+      - 0.9
+      - -1.8
+      - 0.0
+      - 0.9
+      - -1.8
+      - 0.0
+      - 0.9
+      - -1.8
     joints:
       - FR_hip_joint
       - FR_thigh_joint

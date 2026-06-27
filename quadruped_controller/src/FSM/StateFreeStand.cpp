@@ -22,10 +22,18 @@ void StateFreeStand::enter()
     {
         return;
     }
-    for (int i = 0; i < 12; ++i)
+    for (std::size_t i = 0; i < 12; ++i)
     {
+        ctrl_interfaces_.joint_torque_command_interface_[i].get().set_value(0.0);
+        ctrl_interfaces_.joint_velocity_command_interface_[i].get().set_value(0.0);
         ctrl_interfaces_.joint_kp_command_interface_[i].get().set_value(100.0);
         ctrl_interfaces_.joint_kd_command_interface_[i].get().set_value(5.0);
+
+        if (i < ctrl_interfaces_.joint_position_state_interface_.size())
+        {
+            ctrl_interfaces_.joint_position_command_interface_[i].get().set_value(
+                ctrl_interfaces_.joint_position_state_interface_[i].get().get_value());
+        }
     }
 
     init_joint_pos_ = robot_model_->current_joint_pos_;

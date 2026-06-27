@@ -25,31 +25,67 @@ Eigen::MatrixXd RobotLeg::calcJaco(const Eigen::VectorXd &q_full)
     return J_6xN.topRows(3);
 }
 
+// Eigen::VectorXd RobotLeg::calcQ(const SE3 &target_pose, const Eigen::VectorXd &q_full)
+// {
+//     const int max_iter = 200;
+//     const double eps = 1e-4;
+//     const double lambda = 0.5;
+
+//     Eigen::VectorXd q = q_full;
+
+//     for (int iter = 0; iter < max_iter; ++iter)
+//     {
+//         SE3 current_pose = calcPEe2B(q);
+//         SE3 error = target_pose.actInv(current_pose);
+//         Eigen::Matrix<double, 6, 1> err_vec = pinocchio::log6(error).toVector();
+
+//         if (err_vec.norm() < eps)
+//             break;
+
+//         pinocchio::computeJointJacobians(model_, data_, q);
+
+//         Eigen::MatrixXd J_6xN = Eigen::MatrixXd::Zero(6, model_.nv);
+//         pinocchio::getFrameJacobian(model_, data_, foot_frame_id_, pinocchio::LOCAL_WORLD_ALIGNED, J_6xN);
+//         Eigen::MatrixXd JJT = J_6xN * J_6xN.transpose();
+//         JJT.diagonal() += Eigen::VectorXd::Constant(6, lambda);
+
+//         Eigen::VectorXd dq = J_6xN.transpose() * JJT.ldlt().solve(err_vec);
+
+//         q += dq;
+//     }
+
+//     return q;
+// }
 Eigen::VectorXd RobotLeg::calcQ(const SE3 &target_pose, const Eigen::VectorXd &q_full)
 {
-    const int max_iter = 200;
-    const double eps = 1e-4;
-    const double lambda = 0.5;
+    const int max_iter = 100;
+    const double eps = 1e-5;
+    const double lambda = 1e-4;
 
     Eigen::VectorXd q = q_full;
 
     for (int iter = 0; iter < max_iter; ++iter)
     {
-        SE3 current_pose = calcPEe2B(q);
-        SE3 error = target_pose.actInv(current_pose);
-        Eigen::Matrix<double, 6, 1> err_vec = pinocchio::log6(error).toVector();
+        const SE3 current_pose = calcPEe2B(q);
 
-        if (err_vec.norm() < eps)
+        const Vec3 err = target_pose.translation() - current_pose.translation();
+
+        if (err.norm() < eps)
+        {
             break;
+        }
 
         pinocchio::computeJointJacobians(model_, data_, q);
 
         Eigen::MatrixXd J_6xN = Eigen::MatrixXd::Zero(6, model_.nv);
         pinocchio::getFrameJacobian(model_, data_, foot_frame_id_, pinocchio::LOCAL_WORLD_ALIGNED, J_6xN);
-        Eigen::MatrixXd JJT = J_6xN * J_6xN.transpose();
-        JJT.diagonal() += Eigen::VectorXd::Constant(6, lambda);
 
-        Eigen::VectorXd dq = J_6xN.transpose() * JJT.ldlt().solve(err_vec);
+        const Eigen::MatrixXd J = J_6xN.topRows(3);
+
+        Eigen::Matrix3d JJT = J * J.transpose();
+        JJT.diagonal().array() += lambda;
+
+        const Eigen::VectorXd dq = J.transpose() * JJT.ldlt().solve(err);
 
         q += dq;
     }

@@ -24,4 +24,14 @@ void StatePassive::exit()
 {
 }
 
+FSMStateName StatePassive::checkChange()
+{
+    switch (ctrl_interfaces_.control_inputs_.command)
+    {
+    case 2:
+        return FSMStateName::FIXEDSTAND;
+    default:
+        return FSMStateName::PASSIVE;
+    }
+}
 } // namespace quadruped_controller

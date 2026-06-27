@@ -13,14 +13,14 @@ controller_interface::CallbackReturn QuadrupedController::on_init()
         joint_names_ = auto_declare<std::vector<std::string>>("joints", joint_names_);
         command_interface_types_ =
             auto_declare<std::vector<std::string>>("command_interfaces", command_interface_types_);
-        // imu sensor
+        state_interface_types_ = auto_declare<std::vector<std::string>>("state_interfaces", state_interface_types_);
+
         imu_name_ = auto_declare<std::string>("imu_name", imu_name_);
         base_name_ = auto_declare<std::string>("base_name", base_name_);
-        imu_interface_types_ = auto_declare<std::vector<std::string>>("imu_interfaces", state_interface_types_);
+        imu_interface_types_ = auto_declare<std::vector<std::string>>("imu_interfaces", imu_interface_types_);
         command_prefix_ = auto_declare<std::string>("command_prefix", command_prefix_);
         feet_names_ = auto_declare<std::vector<std::string>>("feet_names", feet_names_);
 
-        // pose parameters
         down_pos_ = auto_declare<std::vector<double>>("down_pos", down_pos_);
         stand_pos_ = auto_declare<std::vector<double>>("stand_pos", stand_pos_);
         stand_kp_ = auto_declare<double>("stand_kp", stand_kp_);
@@ -106,35 +106,60 @@ controller_interface::InterfaceConfiguration QuadrupedController::state_interfac
 
     return conf;
 }
+
 controller_interface::CallbackReturn QuadrupedController::on_activate(const rclcpp_lifecycle::State &previous_state)
 {
     (void)previous_state;
 
     ctrl_interfaces_.clear();
 
-    for (auto &interface : command_interfaces_)
+    for (const auto &joint_name : joint_names_)
     {
-        std::string interface_name = interface.get_name();
-
-        if (const size_t pos = interface_name.find('/'); pos != std::string::npos)
+        for (const auto &interface_type : command_interface_types_)
         {
-            command_interface_map_[interface_name.substr(pos + 1)]->push_back(interface);
-        }
-        else
-        {
-            command_interface_map_[interface_name.substr(pos + 1)]->push_back(interface);
+            for (auto &interface : command_interfaces_)
+            {
+                if (interface.get_prefix_name() == joint_name && interface.get_interface_name() == interface_type)
+                {
+                    auto it = command_interface_map_.find(interface_type);
+                    if (it != command_interface_map_.end())
+                    {
+                        it->second->push_back(interface);
+                    }
+                    break;
+                }
+            }
         }
     }
 
-    for (auto &interface : state_interfaces_)
+    for (const auto &joint_name : joint_names_)
     {
-        if (interface.get_prefix_name() == imu_name_)
+        for (const auto &interface_type : state_interface_types_)
         {
-            ctrl_interfaces_.imu_state_interface_.emplace_back(interface);
+            for (auto &interface : state_interfaces_)
+            {
+                if (interface.get_prefix_name() == joint_name && interface.get_interface_name() == interface_type)
+                {
+                    auto it = state_interface_map_.find(interface_type);
+                    if (it != state_interface_map_.end())
+                    {
+                        it->second->push_back(interface);
+                    }
+                    break;
+                }
+            }
         }
-        else
+    }
+
+    for (const auto &interface_type : imu_interface_types_)
+    {
+        for (auto &interface : state_interfaces_)
         {
-            state_interface_map_[interface.get_interface_name()]->push_back(interface);
+            if (interface.get_prefix_name() == imu_name_ && interface.get_interface_name() == interface_type)
+            {
+                ctrl_interfaces_.imu_state_interface_.emplace_back(interface);
+                break;
+            }
         }
     }
 
@@ -164,6 +189,31 @@ controller_interface::return_type QuadrupedController::update(const rclcpp::Time
     ctrl_component_.robot_model_->update();
     ctrl_component_.wave_generator_->update();
     ctrl_component_.estimator_->update();
+
+    if (mode_ == FSMMode::NORMAL)
+    {
+        current_state_->run(time, period);
+        next_state_name_ = current_state_->checkChange();
+
+        if (next_state_name_ != FSMStateName::INVALID && next_state_name_ != current_state_->state_name)
+        {
+            next_state_ = getNextState(next_state_name_);
+            if (next_state_ != nullptr)
+            {
+                mode_ = FSMMode::CHANGE;
+                RCLCPP_INFO(get_node()->get_logger(), "Switched from %s to %s",
+                            current_state_->state_name_string.c_str(), next_state_->state_name_string.c_str());
+            }
+        }
+    }
+    else if (mode_ == FSMMode::CHANGE)
+    {
+        current_state_->exit();
+        current_state_ = next_state_;
+        current_state_->enter();
+        mode_ = FSMMode::NORMAL;
+    }
+
     return controller_interface::return_type::OK;
 }
 
