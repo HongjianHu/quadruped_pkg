@@ -20,9 +20,11 @@ class StateFixedStand : public FSMState
 
   private:
     std::vector<double> target_pos_;
+    std::vector<double> init_pos_;
     double kp_, kd_;
     int loop_count_;
-    const int settle_time_ = 500;
+    double elapsed_time_{0.0};
+    static constexpr double kStandRampDuration = 2.0;
 };
 
 } // namespace quadruped_controller

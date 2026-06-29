@@ -8,7 +8,9 @@
   			<param name="model_path">$(find go2_description)/mujoco/go2_unitree/scene.xml</param>
   			<param name="initial_keyframe">home</param>
   			<param name="sim_timestep">0.001</param>
-		</hardware>
+  			<param name="enable_viewer">$(arg MUJOCO_VIEWER)</param>
+  			<param name="viewer_refresh_hz">60.0</param>
+			</hardware>
 
 		<joint name="FR_hip_joint">
 			<command_interface name="position"/>

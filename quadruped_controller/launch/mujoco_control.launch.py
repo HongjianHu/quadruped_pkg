@@ -24,6 +24,7 @@ def launch_setup(context, *args, **kwargs):
             "GAZEBO": "false",
             "CLASSIC": "false",
             "DEBUG": "false",
+            "MUJOCO_VIEWER": context.launch_configurations["use_embedded_mujoco_viewer"],
         },
     ).toxml()
 
@@ -163,7 +164,13 @@ def generate_launch_description():
     use_mujoco_viewer = DeclareLaunchArgument(
         "use_mujoco_viewer",
         default_value="false",
-        description="Start MuJoCo simulate viewer for model inspection.",
+        description="Start standalone MuJoCo simulate viewer for model inspection.",
+    )
+
+    use_embedded_mujoco_viewer = DeclareLaunchArgument(
+        "use_embedded_mujoco_viewer",
+        default_value="true",
+        description="Start the MuJoCo viewer attached to the ros2_control hardware simulation.",
     )
 
     return LaunchDescription(
@@ -171,6 +178,7 @@ def generate_launch_description():
             pkg_description,
             use_rviz,
             use_mujoco_viewer,
+            use_embedded_mujoco_viewer,
             OpaqueFunction(function=launch_setup),
         ]
     )

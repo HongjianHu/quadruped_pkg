@@ -5,6 +5,7 @@
   <xacro:arg name="DEBUG" default="false"/>
   <xacro:arg name="GAZEBO" default="false"/>
   <xacro:arg name="CLASSIC" default="false"/>
+  <xacro:arg name="MUJOCO_VIEWER" default="false"/>
 
   <xacro:include filename="$(find go2_description)/xacro/const.xacro"/>
   <xacro:include filename="$(find go2_description)/xacro/materials.xacro"/>

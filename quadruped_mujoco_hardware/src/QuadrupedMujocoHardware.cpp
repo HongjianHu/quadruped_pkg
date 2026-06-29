@@ -3,10 +3,15 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/logging.hpp>
 
+#include <GLFW/glfw3.h>
+
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <string>
+#include <thread>
 
 namespace quadruped_mujoco_hardware
 {
@@ -38,10 +43,118 @@ double clampActuatorCommand(const mjModel *model, int actuator_id, double comman
     return std::clamp(command, min_cmd, max_cmd);
 }
 
+bool parseBoolParam(const std::string &value)
+{
+    return value == "true" || value == "True" || value == "TRUE" || value == "1";
+}
+
+struct ViewerMouseState
+{
+    const mjModel *model{nullptr};
+    mjvCamera *camera{nullptr};
+    mjvScene *scene{nullptr};
+    double last_x{0.0};
+    double last_y{0.0};
+    bool has_last_position{false};
+};
+
+ViewerMouseState *getViewerMouseState(GLFWwindow *window)
+{
+    return static_cast<ViewerMouseState *>(glfwGetWindowUserPointer(window));
+}
+
+void viewerMouseButtonCallback(GLFWwindow *window, int /*button*/, int /*action*/, int /*mods*/)
+{
+    auto *state = getViewerMouseState(window);
+    if (state == nullptr)
+    {
+        return;
+    }
+
+    glfwGetCursorPos(window, &state->last_x, &state->last_y);
+    state->has_last_position = true;
+}
+
+void viewerCursorPosCallback(GLFWwindow *window, double xpos, double ypos)
+{
+    auto *state = getViewerMouseState(window);
+    if (state == nullptr)
+    {
+        return;
+    }
+
+    if (!state->has_last_position)
+    {
+        state->last_x = xpos;
+        state->last_y = ypos;
+        state->has_last_position = true;
+        return;
+    }
+
+    const double dx = xpos - state->last_x;
+    const double dy = ypos - state->last_y;
+    state->last_x = xpos;
+    state->last_y = ypos;
+
+    if (state->model == nullptr || state->camera == nullptr || state->scene == nullptr)
+    {
+        return;
+    }
+
+    const bool left_button = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    const bool middle_button = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
+    const bool right_button = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+    if (!left_button && !middle_button && !right_button)
+    {
+        return;
+    }
+
+    const bool shift_pressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+                               glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+
+    int action = mjMOUSE_NONE;
+    if (middle_button)
+    {
+        action = mjMOUSE_ZOOM;
+    }
+    else if (right_button)
+    {
+        action = shift_pressed ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+    }
+    else if (left_button)
+    {
+        action = shift_pressed ? mjMOUSE_ROTATE_H : mjMOUSE_ROTATE_V;
+    }
+
+    int width = 0;
+    int height = 0;
+    glfwGetWindowSize(window, &width, &height);
+    if (height <= 0)
+    {
+        return;
+    }
+
+    mjv_moveCamera(state->model, action, dx / static_cast<double>(height), dy / static_cast<double>(height),
+                   state->scene, state->camera);
+}
+
+void viewerScrollCallback(GLFWwindow *window, double /*xoffset*/, double yoffset)
+{
+    auto *state = getViewerMouseState(window);
+    if (state == nullptr || state->model == nullptr || state->camera == nullptr || state->scene == nullptr)
+    {
+        return;
+    }
+
+    mjv_moveCamera(state->model, mjMOUSE_ZOOM, 0.0, -0.05 * yoffset, state->scene, state->camera);
+}
+
 } // namespace
 
 QuadrupedMujocoHardware::~QuadrupedMujocoHardware()
 {
+    stopViewer();
+
     if (data_ != nullptr)
     {
         mj_deleteData(data_);
@@ -75,6 +188,18 @@ hardware_interface::CallbackReturn QuadrupedMujocoHardware::on_init(const hardwa
     if (timestep_it != info_.hardware_parameters.end())
     {
         sim_timestep_ = std::stod(timestep_it->second);
+    }
+
+    const auto viewer_it = info_.hardware_parameters.find("enable_viewer");
+    if (viewer_it != info_.hardware_parameters.end())
+    {
+        viewer_enabled_ = parseBoolParam(viewer_it->second);
+    }
+
+    const auto viewer_rate_it = info_.hardware_parameters.find("viewer_refresh_hz");
+    if (viewer_rate_it != info_.hardware_parameters.end())
+    {
+        viewer_refresh_hz_ = std::max(1.0, std::stod(viewer_rate_it->second));
     }
 
     char error[1024] = "";
@@ -190,6 +315,17 @@ hardware_interface::CallbackReturn QuadrupedMujocoHardware::on_init(const hardwa
         foot_force_state_.assign(4, 0.0);
     }
 
+    const std::array<std::string, 4> foot_geom_names = {"FR", "FL", "RR", "RL"};
+    for (std::size_t i = 0; i < foot_geom_names.size(); ++i)
+    {
+        foot_geom_ids_[i] = mj_name2id(model_, mjOBJ_GEOM, foot_geom_names[i].c_str());
+        if (foot_geom_ids_[i] < 0)
+        {
+            RCLCPP_WARN(rclcpp::get_logger("quadruped_mujoco_hardware"),
+                        "Foot geom '%s' not found; its foot_force interface will stay zero", foot_geom_names[i].c_str());
+        }
+    }
+
     if (info_.sensors.size() > 2)
     {
         odometer_state_.assign(info_.sensors[2].state_interfaces.size(), 0.0);
@@ -199,9 +335,15 @@ hardware_interface::CallbackReturn QuadrupedMujocoHardware::on_init(const hardwa
         odometer_state_.assign(6, 0.0);
     }
     RCLCPP_INFO(rclcpp::get_logger("quadruped_mujoco_hardware"),
-                "Loaded MuJoCo model '%s': nq=%ld nv=%ld nu=%ld joints=%zu timestep=%.6f", model_path.c_str(),
+                "Loaded MuJoCo model '%s': nq=%ld nv=%ld nu=%ld joints=%zu timestep=%.6f viewer=%s",
+                model_path.c_str(),
                 static_cast<long>(model_->nq), static_cast<long>(model_->nv), static_cast<long>(model_->nu),
-                joint_count, model_->opt.timestep);
+                joint_count, model_->opt.timestep, viewer_enabled_ ? "true" : "false");
+
+    if (viewer_enabled_)
+    {
+        startViewer();
+    }
 
     return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -265,6 +407,8 @@ std::vector<hardware_interface::CommandInterface> QuadrupedMujocoHardware::expor
 hardware_interface::return_type QuadrupedMujocoHardware::read(const rclcpp::Time & /*time*/,
                                                               const rclcpp::Duration & /*period*/)
 {
+    std::lock_guard<std::mutex> lock(mujoco_mutex_);
+
     if (model_ == nullptr || data_ == nullptr)
     {
         return hardware_interface::return_type::ERROR;
@@ -296,10 +440,7 @@ hardware_interface::return_type QuadrupedMujocoHardware::read(const rclcpp::Time
     imu_state_[8] = data_->sensordata[acc_adr + 1];
     imu_state_[9] = data_->sensordata[acc_adr + 2];
 
-    for (double &force : foot_force_state_)
-    {
-        force = 0.0;
-    }
+    updateFootForces();
 
     if (odometer_state_.size() >= 6)
     {
@@ -318,6 +459,8 @@ hardware_interface::return_type QuadrupedMujocoHardware::read(const rclcpp::Time
 hardware_interface::return_type QuadrupedMujocoHardware::write(const rclcpp::Time & /*time*/,
                                                                const rclcpp::Duration &period)
 {
+    std::lock_guard<std::mutex> lock(mujoco_mutex_);
+
     if (model_ == nullptr || data_ == nullptr)
     {
         return hardware_interface::return_type::ERROR;
@@ -351,6 +494,148 @@ hardware_interface::return_type QuadrupedMujocoHardware::write(const rclcpp::Tim
     }
 
     return hardware_interface::return_type::OK;
+}
+
+void QuadrupedMujocoHardware::updateFootForces()
+{
+    std::fill(foot_force_state_.begin(), foot_force_state_.end(), 0.0);
+
+    if (model_ == nullptr || data_ == nullptr)
+    {
+        return;
+    }
+
+    const std::size_t foot_count = std::min<std::size_t>(foot_force_state_.size(), foot_geom_ids_.size());
+    for (int contact_id = 0; contact_id < data_->ncon; ++contact_id)
+    {
+        const mjContact &contact = data_->contact[contact_id];
+        mjtNum contact_force[6] = {0, 0, 0, 0, 0, 0};
+        mj_contactForce(model_, data_, contact_id, contact_force);
+        const double normal_force = std::max(0.0, static_cast<double>(contact_force[0]));
+
+        for (std::size_t foot = 0; foot < foot_count; ++foot)
+        {
+            const int geom_id = foot_geom_ids_[foot];
+            if (geom_id >= 0 && (contact.geom1 == geom_id || contact.geom2 == geom_id))
+            {
+                foot_force_state_[foot] += normal_force;
+            }
+        }
+    }
+}
+
+void QuadrupedMujocoHardware::startViewer()
+{
+    if (viewer_running_.load())
+    {
+        return;
+    }
+
+    viewer_running_.store(true);
+    viewer_thread_ = std::thread(&QuadrupedMujocoHardware::viewerLoop, this);
+}
+
+void QuadrupedMujocoHardware::stopViewer()
+{
+    viewer_running_.store(false);
+    if (viewer_thread_.joinable())
+    {
+        viewer_thread_.join();
+    }
+}
+
+void QuadrupedMujocoHardware::viewerLoop()
+{
+    const auto logger = rclcpp::get_logger("quadruped_mujoco_hardware");
+
+    if (!glfwInit())
+    {
+        RCLCPP_WARN(logger, "Failed to initialize GLFW; embedded MuJoCo viewer is disabled");
+        viewer_running_.store(false);
+        return;
+    }
+
+    GLFWwindow *window = glfwCreateWindow(1280, 900, "quadruped embedded MuJoCo", nullptr, nullptr);
+    if (window == nullptr)
+    {
+        RCLCPP_WARN(logger, "Failed to create GLFW window; embedded MuJoCo viewer is disabled");
+        glfwTerminate();
+        viewer_running_.store(false);
+        return;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+
+    mjvCamera camera;
+    mjvOption option;
+    mjvScene scene;
+    mjrContext context;
+    mjv_defaultCamera(&camera);
+    mjv_defaultOption(&option);
+    mjv_defaultScene(&scene);
+    mjr_defaultContext(&context);
+
+    camera.type = mjCAMERA_FREE;
+    camera.azimuth = 90.0;
+    camera.elevation = -20.0;
+    camera.distance = 3.0;
+    camera.lookat[0] = 0.0;
+    camera.lookat[1] = 0.0;
+    camera.lookat[2] = 0.25;
+
+    ViewerMouseState mouse_state;
+    mouse_state.model = model_;
+    mouse_state.camera = &camera;
+    mouse_state.scene = &scene;
+    glfwSetWindowUserPointer(window, &mouse_state);
+    glfwSetMouseButtonCallback(window, viewerMouseButtonCallback);
+    glfwSetCursorPosCallback(window, viewerCursorPosCallback);
+    glfwSetScrollCallback(window, viewerScrollCallback);
+
+    {
+        std::lock_guard<std::mutex> lock(mujoco_mutex_);
+        if (model_ != nullptr)
+        {
+            mjv_makeScene(model_, &scene, 2000);
+            mjr_makeContext(model_, &context, mjFONTSCALE_150);
+        }
+    }
+
+    const auto frame_period =
+        std::chrono::duration<double>(1.0 / std::max(1.0, viewer_refresh_hz_));
+    RCLCPP_INFO(logger,
+                "Embedded MuJoCo viewer started. Controls: left-drag rotate, right-drag pan, shift+drag alternate "
+                "plane, middle-drag/wheel zoom");
+
+    while (viewer_running_.load() && !glfwWindowShouldClose(window))
+    {
+        int width = 0;
+        int height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        const mjrRect viewport = {0, 0, width, height};
+
+        {
+            std::lock_guard<std::mutex> lock(mujoco_mutex_);
+            if (model_ != nullptr && data_ != nullptr)
+            {
+                mjv_updateScene(model_, data_, &option, nullptr, &camera, mjCAT_ALL, &scene);
+            }
+        }
+
+        mjr_render(viewport, &scene, &context);
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+        std::this_thread::sleep_for(frame_period);
+    }
+
+    mjr_freeContext(&context);
+    mjv_freeScene(&scene);
+    glfwSetWindowUserPointer(window, nullptr);
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    viewer_running_.store(false);
+    RCLCPP_INFO(logger, "Embedded MuJoCo viewer stopped");
 }
 
 } // namespace quadruped_mujoco_hardware

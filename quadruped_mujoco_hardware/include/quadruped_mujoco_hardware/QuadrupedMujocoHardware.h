@@ -8,8 +8,12 @@
 
 #include <mujoco/mujoco.h>
 
+#include <array>
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace quadruped_mujoco_hardware
@@ -31,8 +35,14 @@ class QuadrupedMujocoHardware final : public hardware_interface::SystemInterface
     ~QuadrupedMujocoHardware() override;
 
   private:
+    void updateFootForces();
+    void startViewer();
+    void stopViewer();
+    void viewerLoop();
+
     mjModel *model_{nullptr};
     mjData *data_{nullptr};
+    std::mutex mujoco_mutex_;
 
     std::vector<double> joint_position_;
     std::vector<double> joint_velocity_;
@@ -55,8 +65,13 @@ class QuadrupedMujocoHardware final : public hardware_interface::SystemInterface
     int imu_quat_sensor_id_{-1};
     int imu_gyro_sensor_id_{-1};
     int imu_acc_sensor_id_{-1};
+    std::array<int, 4> foot_geom_ids_{{-1, -1, -1, -1}};
 
     double sim_timestep_{0.001};
+    bool viewer_enabled_{false};
+    double viewer_refresh_hz_{60.0};
+    std::atomic_bool viewer_running_{false};
+    std::thread viewer_thread_;
 };
 
 } // namespace quadruped_mujoco_hardware

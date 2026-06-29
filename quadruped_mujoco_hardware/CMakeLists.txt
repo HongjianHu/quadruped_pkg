@@ -11,6 +11,7 @@ set(MUJOCO_ROOT "/opt/mujoco" CACHE PATH "MuJoCo installation path")
 
 find_package(ament_cmake REQUIRED)
 find_package(hardware_interface REQUIRED)
+find_package(OpenGL REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
@@ -34,6 +35,8 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   "${MUJOCO_ROOT}/lib/libmujoco.so"
+  glfw
+  OpenGL::GL
 )
 
 ament_target_dependencies(${PROJECT_NAME}
