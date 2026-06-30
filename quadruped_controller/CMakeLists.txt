@@ -34,13 +34,14 @@ add_library(${PROJECT_NAME} SHARED
     src/FSM/StateTrotting.cpp
     src/FSM/StateFixedStand.cpp
     src/robot/QuadrupedRobot.cpp
-    src/robot/RobotLeg.cpp
     src/control/LowPassFilter.cpp
     src/control/Estimator.cpp
     src/control/BalanceCtrl.cpp
     src/gait/FeetEndCalc.cpp
     src/gait/GaitGenerator.cpp
     src/gait/WaveGenerator.cpp
+    src/gait/Gait.cpp
+    src/robot/go2_robot_data/PinGo2Model.cpp
 )
 
 target_include_directories(${PROJECT_NAME}

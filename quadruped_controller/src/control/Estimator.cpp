@@ -21,8 +21,16 @@ KalmanFilterEstimate::KalmanFilterEstimate(CtrlInterfaces &ctrl_interfaces, Ctrl
     large_variance_ = 100;
 
     x_hat_.setZero();
-    feet_pos_body_.setZero();
-    feet_vel_body_.setZero();
+    feet_pos_measurement_world_.setZero();
+    feet_vel_measurement_world_.setZero();
+    rotation_.setIdentity();
+    acceleration_.setZero();
+    gyro_.setZero();
+    estimator_contact_.setZero();
+    force_contact_.setZero();
+    slip_detected_.setZero();
+    phase_contact_past_.setZero();
+    phase_contact_elapsed_.setConstant(kContactSwitchBlindTime);
     A.setIdentity();
     B.setZero();
     C.setZero();
@@ -126,6 +134,47 @@ double KalmanFilterEstimate::getYaw() const
     return rotMatToRPY(rotation_)[2];
 }
 
+void KalmanFilterEstimate::updateEstimatorContact()
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        const int phase_contact = wave_generator_->contact_[i] == 1 ? 1 : 0;
+
+        if (!contact_gate_initialized_)
+        {
+            phase_contact_past_[i] = phase_contact;
+            phase_contact_elapsed_[i] = kContactSwitchBlindTime;
+        }
+        else if (phase_contact != phase_contact_past_[i])
+        {
+            phase_contact_past_[i] = phase_contact;
+            phase_contact_elapsed_[i] = 0.0;
+        }
+        else
+        {
+            phase_contact_elapsed_[i] += dt_;
+        }
+
+        bool force_contact = true;
+        if (i < static_cast<int>(ctrl_interfaces_.foot_force_state_interface_.size()))
+        {
+            force_contact = ctrl_interfaces_.foot_force_state_interface_[i].get().get_value() > kContactForceThreshold;
+        }
+        force_contact_[i] = force_contact ? 1 : 0;
+
+        const Vec3 r_contact_b = foot_poses_[i].translation() + Vec3(0.0, 0.0, -0.02);
+        const Vec3 v_contact_rel_b = foot_vels_[i] + gyro_.cross(r_contact_b);
+        const Vec3 foot_vel_world = x_hat_.segment(3, 3) + rotation_ * v_contact_rel_b;
+        const bool slip_detected = foot_vel_world.head<2>().norm() > kSlipVelocityThreshold;
+        slip_detected_[i] = slip_detected ? 1 : 0;
+
+        const bool past_switch_blind_time = phase_contact_elapsed_[i] >= kContactSwitchBlindTime;
+        estimator_contact_[i] = (phase_contact == 1 && force_contact && past_switch_blind_time && !slip_detected) ? 1 : 0;
+    }
+
+    contact_gate_initialized_ = true;
+}
+
 void KalmanFilterEstimate::update()
 {
     if (robot_model_->mass_ == 0)
@@ -146,38 +195,6 @@ void KalmanFilterEstimate::update()
     R.block(12, 12, 12, 12) = Mat12::Identity() * 0.1;
     R.block(24, 24, 4, 4) = Eigen::Matrix4d::Identity() * 0.01;
 
-    foot_poses_ = robot_model_->getFeet2BPositions();
-    foot_vels_ = robot_model_->getFeet2BVelocities();
-
-    for (int i(0); i < 4; ++i)
-    {
-        int i1 = 3 * i;
-        int qIndex = 6 + i1;
-        int rIndex1 = i1;
-        int rIndex2 = 12 + rIndex1;
-        int rIndex3 = 2 * 12 + i;
-
-        const double trust = windowFunc(wave_generator_->phase_[i], 0.2);
-        if (wave_generator_->contact_[i] == 0)
-        {
-            Q.block(qIndex, qIndex, 3, 3) = large_variance_ * Mat3::Identity(3, 3);
-            R.block(rIndex2, rIndex2, 3, 3) = large_variance_ * Mat3::Identity(3, 3);
-            R(rIndex3, rIndex3) = large_variance_;
-        }
-        else
-        {
-            // foot contact
-            Q.block(qIndex, qIndex, 3, 3) =
-                (1 + (1 - trust) * large_variance_) * QInit_.block(6 + 3 * i, 6 + 3 * i, 3, 3);
-            R.block(rIndex2, rIndex2, 3, 3) =
-                (1 + (1 - trust) * large_variance_) * RInit_.block(12 + 3 * i, 12 + 3 * i, 3, 3);
-            R(rIndex3, rIndex3) = (1 + (1 - trust) * large_variance_) * RInit_(24 + i, 24 + i);
-        }
-        feet_pos_body_.segment(3 * i, 3) = -Vec3(foot_poses_[i].translation());
-        feet_pos_body_.segment(3 * i, 3)[2] += 0.02;
-        feet_vel_body_.segment(3 * i, 3) = -Vec3(foot_vels_[i]);
-    }
-
     Quat quat;
     quat << ctrl_interfaces_.imu_state_interface_[0].get().get_value(),
         ctrl_interfaces_.imu_state_interface_[1].get().get_value(),
@@ -193,12 +210,46 @@ void KalmanFilterEstimate::update()
         ctrl_interfaces_.imu_state_interface_[8].get().get_value(),
         ctrl_interfaces_.imu_state_interface_[9].get().get_value();
 
+    foot_poses_ = robot_model_->getFeet2BPositions();
+    foot_vels_ = robot_model_->getFeet2BVelocities();
+    updateEstimatorContact();
+
+    for (int i(0); i < 4; ++i)
+    {
+        int i1 = 3 * i;
+        int qIndex = 6 + i1;
+        int rIndex1 = i1;
+        int rIndex2 = 12 + rIndex1;
+        int rIndex3 = 2 * 12 + i;
+
+        const double trust = windowFunc(wave_generator_->phase_[i], 0.2);
+        if (estimator_contact_[i] == 0)
+        {
+            Q.block(qIndex, qIndex, 3, 3) = large_variance_ * Mat3::Identity(3, 3);
+            R.block(rIndex2, rIndex2, 3, 3) = large_variance_ * Mat3::Identity(3, 3);
+            R(rIndex3, rIndex3) = large_variance_;
+        }
+        else
+        {
+            // foot contact
+            Q.block(qIndex, qIndex, 3, 3) =
+                (1 + (1 - trust) * large_variance_) * QInit_.block(6 + 3 * i, 6 + 3 * i, 3, 3);
+            R.block(rIndex2, rIndex2, 3, 3) =
+                (1 + (1 - trust) * large_variance_) * RInit_.block(12 + 3 * i, 12 + 3 * i, 3, 3);
+            R(rIndex3, rIndex3) = (1 + (1 - trust) * large_variance_) * RInit_(24 + i, 24 + i);
+        }
+        const Vec3 r_contact_b = foot_poses_[i].translation() + Vec3(0.0, 0.0, -0.02);
+        const Vec3 v_contact_rel_b = foot_vels_[i] + gyro_.cross(r_contact_b);
+        feet_pos_measurement_world_.segment(3 * i, 3) = -rotation_ * r_contact_b;
+        feet_vel_measurement_world_.segment(3 * i, 3) = -rotation_ * v_contact_rel_b;
+    }
+
     u_ = rotation_ * acceleration_ + g_;
     x_hat_ = A * x_hat_ + B * u_;
     y_hat_ = C * x_hat_;
 
     // Update the measurement value
-    y_ << feet_pos_body_, feet_vel_body_, feet_h_;
+    y_ << feet_pos_measurement_world_, feet_vel_measurement_world_, feet_h_;
     // Update the covariance matrix
     Ppriori = A * P * A.transpose() + Q;
     S = R + C * Ppriori * C.transpose();

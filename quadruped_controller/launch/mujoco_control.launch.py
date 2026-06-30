@@ -47,7 +47,7 @@ def launch_setup(context, *args, **kwargs):
     mujoco_model = os.path.join(
         description_pkg_path,
         "mujoco",
-        "go2_unitree",
+        "go2",
         "scene.xml",
     )
 

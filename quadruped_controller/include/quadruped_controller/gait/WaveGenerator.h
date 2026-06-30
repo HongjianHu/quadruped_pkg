@@ -29,6 +29,9 @@ class WaveGenerator
     /// 每控制周期调用一次，更新 phase 和 contact
     void update();
 
+    /// 重置相位起点，并立即切换到指定状态
+    void restart(WaveStatus status);
+
     double getTStance() const
     {
         return period_ * st_ratio_;

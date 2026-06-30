@@ -3,17 +3,14 @@
 
 #include <array>
 #include <memory>
-#include <pinocchio/algorithm/frames.hpp>
-#include <pinocchio/algorithm/jacobian.hpp>
-#include <pinocchio/algorithm/kinematics.hpp>
-#include <pinocchio/multibody/model.hpp>
-#include <pinocchio/parsers/urdf.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "RobotLeg.h"
 #include "quadruped_controller/common/CtrlInterfaces.h"
 #include "quadruped_controller/common/mathTypes.h"
+#include "quadruped_controller/robot/go2_robot_data/PinGo2Model.h"
+
 namespace quadruped_controller
 {
 
@@ -21,7 +18,8 @@ class QuadrupedRobot
 {
   public:
     QuadrupedRobot(CtrlInterfaces &ctrl_interfaces, const std::string &robot_description,
-                   const std::vector<std::string> &feet_names, const std::string &base_name);
+                   const std::vector<std::string> &feet_names, const std::string &base_name,
+                   const std::vector<std::string> &joint_names);
 
     /// 从硬件接口更新当前关节位置/速度
     void update();
@@ -52,18 +50,13 @@ class QuadrupedRobot
     // ---- 当前关节状态 ----
     std::vector<Eigen::VectorXd> current_joint_pos_;
     std::vector<Eigen::VectorXd> current_joint_vel_;
-    Eigen::VectorXd q_full_;
 
   private:
     CtrlInterfaces &ctrl_interfaces_;
-    std::vector<std::shared_ptr<RobotLeg>> robot_legs_;
-    std::vector<std::array<int, 3>> leg_q_indices_;
-    std::vector<std::array<int, 3>> leg_v_indices_;
 
-    // Pinocchio 模型（只有一份，四条腿共享引用）
-    pinocchio::Model model_;
-    // 每条腿一个 data，避免并发覆盖
-    pinocchio::Data data_fr_, data_fl_, data_rr_, data_rl_;
+    std::unique_ptr<go2_robot_data::PinGo2Model> go2_model_;
+    std::unordered_map<std::string, std::size_t> joint_state_index_by_name_;
+    std::array<std::array<std::size_t, 3>, 4> joint_state_indices_{};
 };
 
 } // namespace quadruped_controller

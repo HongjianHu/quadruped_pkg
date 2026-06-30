@@ -28,7 +28,7 @@ WaveGenerator::WaveGenerator(const double period, const double st_ratio, const V
             exit(-1);
         }
     }
-    start_t_ = getSystemTime();
+    restart(status_);
 }
 
 auto WaveGenerator::update() -> void
@@ -71,6 +71,17 @@ auto WaveGenerator::update() -> void
             status_past_ = status_;
         }
     }
+}
+
+void WaveGenerator::restart(const WaveStatus status)
+{
+    start_t_ = getSystemTime();
+    status_ = status;
+    status_past_ = status;
+    switch_status_.setZero();
+    calcWave(phase_, contact_, status_);
+    phase_past_ = phase_;
+    contact_past_ = contact_;
 }
 
 void WaveGenerator::calcWave(Vec4 &phase, VecInt4 &contact, const WaveStatus status)

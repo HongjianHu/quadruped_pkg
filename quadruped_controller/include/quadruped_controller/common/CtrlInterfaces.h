@@ -25,6 +25,8 @@ struct CtrlInterfaces
 
     // ---- IMU ----
     std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>> imu_state_interface_;
+    std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>> foot_force_state_interface_;
+    std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>> odometer_state_interface_;
 
     // ---- 控制输入（键盘发来的信号）----
     quadruped_controller_msgs::msg::Inputs control_inputs_;
@@ -43,6 +45,8 @@ struct CtrlInterfaces
         joint_velocity_state_interface_.clear();
 
         imu_state_interface_.clear();
+        foot_force_state_interface_.clear();
+        odometer_state_interface_.clear();
     }
 };
 

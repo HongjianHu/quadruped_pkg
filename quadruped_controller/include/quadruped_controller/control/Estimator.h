@@ -59,7 +59,10 @@ class KalmanFilterEstimate
         const std::vector<Vec3> feet_vel = robot_model_->getFeet2BVelocities();
         Vec34 result;
         for (int i = 0; i < 4; ++i)
-            result.col(i) = feet_vel[i] + getVelocity();
+        {
+            const Vec3 r_b = foot_poses_[i].translation();
+            result.col(i) = getVelocity() + rotation_ * (feet_vel[i] + gyro_.cross(r_b));
+        }
         return result;
     }
 
@@ -73,6 +76,18 @@ class KalmanFilterEstimate
         return foot_pos;
     }
 
+    /// 四条足端接触点相对 base 的世界系向量，用于和 MuJoCo odom 组合做独立调试
+    Vec34 getFeetContactPosBaseToWorld()
+    {
+        Vec34 foot_pos;
+        for (int i = 0; i < 4; ++i)
+        {
+            const Vec3 r_contact_b = foot_poses_[i].translation() + Vec3(0.0, 0.0, -0.02);
+            foot_pos.col(i) = rotation_ * r_contact_b;
+        }
+        return foot_pos;
+    }
+
     RotMat getRotation()
     {
         return rotation_;
@@ -81,6 +96,16 @@ class KalmanFilterEstimate
     Vec3 getGyro()
     {
         return gyro_;
+    }
+
+    Vec3 getAccelerationBody() const
+    {
+        return acceleration_;
+    }
+
+    Vec3 getAccelerationWorldInput() const
+    {
+        return rotation_ * acceleration_ + g_;
     }
 
     Vec3 getGyroGlobal() const
@@ -95,9 +120,26 @@ class KalmanFilterEstimate
         return getGyroGlobal()(2);
     }
 
+    VecInt4 getEstimatorContact() const
+    {
+        return estimator_contact_;
+    }
+
+    VecInt4 getForceContact() const
+    {
+        return force_contact_;
+    }
+
+    VecInt4 getSlipDetected() const
+    {
+        return slip_detected_;
+    }
+
     void update();
 
   private:
+    void updateEstimatorContact();
+
     CtrlInterfaces &ctrl_interfaces_;
     std::shared_ptr<QuadrupedRobot> &robot_model_;
     std::shared_ptr<WaveGenerator> &wave_generator_;
@@ -124,8 +166,8 @@ class KalmanFilterEstimate
     Eigen::Matrix<double, 3, 3> Cu;        // 输入协方差
 
     // 测量中间量
-    Eigen::Matrix<double, 12, 1> feet_pos_body_;
-    Eigen::Matrix<double, 12, 1> feet_vel_body_;
+    Eigen::Matrix<double, 12, 1> feet_pos_measurement_world_;
+    Eigen::Matrix<double, 12, 1> feet_vel_measurement_world_;
     Eigen::Matrix<double, 4, 1> feet_h_;
 
     // EKF 中间变量
@@ -148,7 +190,17 @@ class KalmanFilterEstimate
     std::vector<Vec3> foot_vels_;
     std::vector<std::shared_ptr<LowPassFilter>> low_pass_filters_;
 
+    VecInt4 estimator_contact_;
+    VecInt4 force_contact_;
+    VecInt4 slip_detected_;
+    VecInt4 phase_contact_past_;
+    Vec4 phase_contact_elapsed_;
+    bool contact_gate_initialized_{false};
+
     double large_variance_;
+    static constexpr double kContactForceThreshold = 10.0;
+    static constexpr double kContactSwitchBlindTime = 0.05;
+    static constexpr double kSlipVelocityThreshold = 0.15;
 };
 
 } // namespace quadruped_controller

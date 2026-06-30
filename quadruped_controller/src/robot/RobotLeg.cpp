@@ -18,7 +18,9 @@ SE3 RobotLeg::calcPEe2B(const Eigen::VectorXd &q_full)
 
 Eigen::MatrixXd RobotLeg::calcJaco(const Eigen::VectorXd &q_full)
 {
+    pinocchio::forwardKinematics(model_, data_, q_full);
     pinocchio::computeJointJacobians(model_, data_, q_full);
+    pinocchio::updateFramePlacement(model_, data_, foot_frame_id_);
 
     Eigen::MatrixXd J_6xN = Eigen::MatrixXd::Zero(6, model_.nv);
     pinocchio::getFrameJacobian(model_, data_, foot_frame_id_, pinocchio::LOCAL_WORLD_ALIGNED, J_6xN);
@@ -75,7 +77,9 @@ Eigen::VectorXd RobotLeg::calcQ(const SE3 &target_pose, const Eigen::VectorXd &q
             break;
         }
 
+        pinocchio::forwardKinematics(model_, data_, q);
         pinocchio::computeJointJacobians(model_, data_, q);
+        pinocchio::updateFramePlacement(model_, data_, foot_frame_id_);
 
         Eigen::MatrixXd J_6xN = Eigen::MatrixXd::Zero(6, model_.nv);
         pinocchio::getFrameJacobian(model_, data_, foot_frame_id_, pinocchio::LOCAL_WORLD_ALIGNED, J_6xN);

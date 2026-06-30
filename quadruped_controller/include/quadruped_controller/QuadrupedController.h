@@ -4,6 +4,7 @@
 #include <controller_interface/controller_interface.hpp>
 #include <quadruped_controller_msgs/msg/inputs.hpp>
 #include <rclcpp_lifecycle/state.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #include "quadruped_controller/FSM/FSMState.h"
@@ -79,6 +80,11 @@ class QuadrupedController final : public controller_interface::ControllerInterfa
     std::string base_name_;                        // robot_control.yaml
     std::string command_prefix_;                   // robot_control.yaml
     std::vector<std::string> imu_interface_types_; // robot_control.yaml
+    std::string foot_force_name_ = "foot_force";
+    std::vector<std::string> foot_force_interface_types_ = {"FR", "FL", "RR", "RL"};
+    std::string odometer_name_ = "odometer";
+    std::vector<std::string> odometer_interface_types_ = {"position.x", "position.y", "position.z", "velocity.x",
+                                                          "velocity.y", "velocity.z"};
     std::vector<std::string> feet_names_;          // robot_control.yaml
 
     // FR FL RR RL
@@ -93,6 +99,7 @@ class QuadrupedController final : public controller_interface::ControllerInterfa
         control_input_subscription_; // 订阅用户动作命令的节点
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr
         robot_description_subscription_; // 根据传入的yaml文件将命令和状态接口读入读入成员变量
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr estimator_debug_publisher_;
 
     std::unordered_map<std::string, std::vector<std::reference_wrapper<hardware_interface::LoanedCommandInterface>> *>
         command_interface_map_ = {{"effort", &ctrl_interfaces_.joint_torque_command_interface_},
@@ -112,6 +119,7 @@ class QuadrupedController final : public controller_interface::ControllerInterfa
     double update_frequency_;
 
     std::shared_ptr<FSMState> getNextState(FSMStateName stateName) const;
+    void publishEstimatorDebug(const rclcpp::Time &time);
 
     std::unordered_map<std::string, std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>> *>
         state_interface_map_ = {{"position", &ctrl_interfaces_.joint_position_state_interface_},
