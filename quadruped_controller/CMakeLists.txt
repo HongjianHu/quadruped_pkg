@@ -42,6 +42,7 @@ add_library(${PROJECT_NAME} SHARED
     src/gait/WaveGenerator.cpp
     src/gait/Gait.cpp
     src/robot/go2_robot_data/PinGo2Model.cpp
+    src/mpc/ComTrajectory.cpp
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -76,6 +77,19 @@ set_target_properties(gait_debug PROPERTIES
     INSTALL_RPATH "$ORIGIN"
 )
 
+add_executable(com_trajectory_debug
+    src/mpc/ComTrajectoryDebug.cpp
+)
+
+target_link_libraries(com_trajectory_debug
+    PRIVATE
+    ${PROJECT_NAME}
+)
+
+set_target_properties(com_trajectory_debug PROPERTIES
+    INSTALL_RPATH "$ORIGIN"
+)
+
 pluginlib_export_plugin_description_file(controller_interface quadruped_controller.xml)
 
 install(
@@ -92,7 +106,7 @@ install(
 )
 
 install(
-    TARGETS gait_debug
+    TARGETS gait_debug com_trajectory_debug
     RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
