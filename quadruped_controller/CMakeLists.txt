@@ -63,6 +63,19 @@ target_link_libraries(${PROJECT_NAME}
   qpOASES
 )
 
+add_executable(gait_debug
+    src/gait/GaitDebug.cpp
+)
+
+target_link_libraries(gait_debug
+    PRIVATE
+    ${PROJECT_NAME}
+)
+
+set_target_properties(gait_debug PROPERTIES
+    INSTALL_RPATH "$ORIGIN"
+)
+
 pluginlib_export_plugin_description_file(controller_interface quadruped_controller.xml)
 
 install(
@@ -76,6 +89,11 @@ install(
     ARCHIVE DESTINATION lib/${PROJECT_NAME}
     LIBRARY DESTINATION lib/${PROJECT_NAME}
     RUNTIME DESTINATION bin
+)
+
+install(
+    TARGETS gait_debug
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_export_dependencies(${CONTROLLER_INCLUDE_DEPENDS})
