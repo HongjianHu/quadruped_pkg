@@ -8,6 +8,15 @@ endif()
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+get_filename_component(QUADRUPED_PKG_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+list(APPEND CMAKE_PREFIX_PATH
+    "${QUADRUPED_PKG_ROOT}/third_party/osqp"
+    "${QUADRUPED_PKG_ROOT}/third_party/osqp-eigen"
+)
+set(QUADRUPED_THIRD_PARTY_RPATH
+    "$ORIGIN;${QUADRUPED_PKG_ROOT}/third_party/osqp/lib;${QUADRUPED_PKG_ROOT}/third_party/osqp-eigen/lib"
+)
+
 set(CONTROLLER_INCLUDE_DEPENDS
   pluginlib
   rcpputils
@@ -22,6 +31,7 @@ set(CONTROLLER_INCLUDE_DEPENDS
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(qpOASES REQUIRED)
+find_package(OsqpEigen REQUIRED)
 foreach(Dependency IN ITEMS ${CONTROLLER_INCLUDE_DEPENDS})
     find_package(${Dependency} REQUIRED)
 endforeach()
@@ -43,6 +53,7 @@ add_library(${PROJECT_NAME} SHARED
     src/gait/Gait.cpp
     src/robot/go2_robot_data/PinGo2Model.cpp
     src/mpc/ComTrajectory.cpp
+    src/mpc/CentroidalMPC.cpp
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -62,6 +73,11 @@ target_link_libraries(${PROJECT_NAME}
   PUBLIC
   Eigen3::Eigen
   qpOASES
+  OsqpEigen::OsqpEigen
+)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
 )
 
 add_executable(gait_debug
@@ -74,7 +90,7 @@ target_link_libraries(gait_debug
 )
 
 set_target_properties(gait_debug PROPERTIES
-    INSTALL_RPATH "$ORIGIN"
+    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
 )
 
 add_executable(com_trajectory_debug
@@ -87,7 +103,33 @@ target_link_libraries(com_trajectory_debug
 )
 
 set_target_properties(com_trajectory_debug PROPERTIES
-    INSTALL_RPATH "$ORIGIN"
+    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
+)
+
+add_executable(osqp_eigen_test
+    src/mpc/OsqpEigentest.cpp
+)
+
+target_link_libraries(osqp_eigen_test
+    PRIVATE
+    OsqpEigen::OsqpEigen
+)
+
+set_target_properties(osqp_eigen_test PROPERTIES
+    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
+)
+
+add_executable(centroidal_mpc_debug
+    src/mpc/CentroidalMPCDebug.cpp
+)
+
+target_link_libraries(centroidal_mpc_debug
+    PRIVATE
+    ${PROJECT_NAME}
+)
+
+set_target_properties(centroidal_mpc_debug PROPERTIES
+    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
 )
 
 pluginlib_export_plugin_description_file(controller_interface quadruped_controller.xml)
@@ -106,7 +148,7 @@ install(
 )
 
 install(
-    TARGETS gait_debug com_trajectory_debug
+    TARGETS gait_debug com_trajectory_debug osqp_eigen_test centroidal_mpc_debug
     RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 

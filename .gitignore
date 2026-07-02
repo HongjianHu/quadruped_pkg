@@ -1,6 +1,11 @@
 build/
 install/
 log/
+CMakeFiles/
+third_party/build/
+third_party/osqp_src/
+third_party/osqp-eigen_src/
+third_party/osqp/share/osqp/codegen_files/
 __pycache__/
 *.pyc
 .vscode/
