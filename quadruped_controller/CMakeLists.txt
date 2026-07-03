@@ -32,6 +32,7 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(qpOASES REQUIRED)
 find_package(OsqpEigen REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 foreach(Dependency IN ITEMS ${CONTROLLER_INCLUDE_DEPENDS})
     find_package(${Dependency} REQUIRED)
 endforeach()
@@ -47,6 +48,7 @@ add_library(${PROJECT_NAME} SHARED
     src/control/LowPassFilter.cpp
     src/control/Estimator.cpp
     src/control/BalanceCtrl.cpp
+    src/control/LegController.cpp
     src/gait/FeetEndCalc.cpp
     src/gait/GaitGenerator.cpp
     src/gait/WaveGenerator.cpp
@@ -132,6 +134,22 @@ set_target_properties(centroidal_mpc_debug PROPERTIES
     INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
 )
 
+add_executable(leg_controller_debug
+    src/control/LegControllerDebug.cpp
+)
+
+target_link_libraries(leg_controller_debug
+    ${PROJECT_NAME}
+)
+
+ament_target_dependencies(leg_controller_debug
+    ament_index_cpp
+)
+
+set_target_properties(leg_controller_debug PROPERTIES
+    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
+)
+
 pluginlib_export_plugin_description_file(controller_interface quadruped_controller.xml)
 
 install(
@@ -148,7 +166,7 @@ install(
 )
 
 install(
-    TARGETS gait_debug com_trajectory_debug osqp_eigen_test centroidal_mpc_debug
+    TARGETS gait_debug com_trajectory_debug osqp_eigen_test centroidal_mpc_debug leg_controller_debug
     RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 

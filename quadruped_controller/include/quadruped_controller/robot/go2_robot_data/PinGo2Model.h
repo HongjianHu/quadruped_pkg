@@ -30,6 +30,34 @@ class PinGo2Model
 
     Eigen::Matrix3d footJacobianBody(int index);
 
+    struct FootStateWorld
+    {
+        Vec3 position = Vec3::Zero();
+        Vec3 velocity = Vec3::Zero();
+    };
+
+    struct DynamicsTerms
+    {
+        VecX g;
+        MatX C;
+        MatX M;
+    };
+
+    Vec3 footPositionWorld(int index) const;
+    Vec3 footVelocityWorld(int index);
+    FootStateWorld footStateWorld(int index);
+
+    Eigen::Matrix3d footJacobianWorld(int index);
+    Eigen::MatrixXd fullFootJacobianWorld(int index);
+
+    Vec3 computeJdotDqWorld(int index);
+    DynamicsTerms computeDynamicsTerms();
+
+    const VecX &q() const;
+    const VecX &dq() const;
+
+    Vec3 legJointVector(const VecX &generalized_vector, int index) const;
+
     Eigen::VectorXd solveLegIKBody(int index, const Vec3 &target_foot_pos_body,
                                    const Eigen::VectorXd &initial_joint_pos);
 

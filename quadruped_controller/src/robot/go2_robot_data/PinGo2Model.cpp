@@ -1,8 +1,10 @@
 #include "quadruped_controller/robot/go2_robot_data/PinGo2Model.h"
+#include <pinocchio/algorithm/crba.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/rnea.hpp>
 #include <pinocchio/multibody/joint/joint-free-flyer.hpp>
 
 #include <stdexcept>
@@ -100,6 +102,120 @@ SE3 PinGo2Model::footPoseBody(int index) const
     const SE3 &oMb = data_.oMf[base_frame_id_];
     const SE3 &oMf = data_.oMf[foot_frame_ids_[index]];
     return oMb.actInv(oMf);
+}
+
+Vec3 PinGo2Model::footPositionWorld(const int index) const
+{
+    if (index < 0 || index >= 4)
+    {
+        throw std::runtime_error("PinGo2Model foot index out of range");
+    }
+
+    return data_.oMf[foot_frame_ids_[index]].translation();
+}
+
+Eigen::MatrixXd PinGo2Model::fullFootJacobianWorld(const int index)
+{
+    if (index < 0 || index >= 4)
+    {
+        throw std::runtime_error("PinGo2Model foot index out of range");
+    }
+    Eigen::MatrixXd J_world = Eigen::MatrixXd::Zero(6, model_.nv);
+    pinocchio::getFrameJacobian(model_, data_, foot_frame_ids_[index], pinocchio::LOCAL_WORLD_ALIGNED, J_world);
+
+    return J_world.topRows(3);
+}
+
+Eigen::Matrix3d PinGo2Model::footJacobianWorld(int index)
+{
+    if (index < 0 || index >= 4)
+    {
+        throw std::runtime_error("PinGo2Model foot index out of range");
+    }
+
+    const Eigen::MatrixXd J_pos_world_full = fullFootJacobianWorld(index);
+
+    Eigen::Matrix3d J_leg = Eigen::Matrix3d::Zero();
+    for (int j = 0; j < 3; ++j)
+    {
+        J_leg.col(j) = J_pos_world_full.col(leg_v_indices_[index][j]);
+    }
+
+    return J_leg;
+}
+
+Vec3 PinGo2Model::footVelocityWorld(const int index)
+{
+    return fullFootJacobianWorld(index) * dq_;
+}
+
+PinGo2Model::FootStateWorld PinGo2Model::footStateWorld(const int index)
+{
+    FootStateWorld state;
+    state.position = footPositionWorld(index);
+    state.velocity = footVelocityWorld(index);
+
+    return state;
+}
+
+Vec3 PinGo2Model::computeJdotDqWorld(int index)
+{
+    if (index < 0 || index >= 4)
+    {
+        throw std::runtime_error("PinGo2Model foot index out of range");
+    }
+
+    pinocchio::computeJointJacobiansTimeVariation(model_, data_, q_, dq_);
+
+    Eigen::MatrixXd dJ_world = Eigen::MatrixXd::Zero(6, model_.nv);
+    pinocchio::getFrameJacobianTimeVariation(model_, data_, foot_frame_ids_[index], pinocchio::LOCAL_WORLD_ALIGNED,
+                                             dJ_world);
+
+    return dJ_world.topRows(3) * dq_;
+}
+
+PinGo2Model::DynamicsTerms PinGo2Model::computeDynamicsTerms()
+{
+    DynamicsTerms terms;
+
+    terms.g = pinocchio::computeGeneralizedGravity(model_, data_, q_);
+    terms.C = pinocchio::computeCoriolisMatrix(model_, data_, q_, dq_);
+    terms.M = pinocchio::crba(model_, data_, q_);
+
+    terms.M.triangularView<Eigen::StrictlyLower>() = terms.M.transpose().triangularView<Eigen::StrictlyLower>();
+
+    return terms;
+}
+
+const VecX &PinGo2Model::q() const
+{
+    return q_;
+}
+
+const VecX &PinGo2Model::dq() const
+{
+    return dq_;
+}
+
+Vec3 PinGo2Model::legJointVector(const VecX &generalized_vector, const int index) const
+{
+    if (index < 0 || index >= 4)
+    {
+        throw std::runtime_error("PinGo2Model foot index out of range");
+    }
+
+    if (generalized_vector.size() != model_.nv)
+    {
+        throw std::runtime_error("PinGo2Model generalized vector size mismatch");
+    }
+
+    Vec3 leg_vector = Vec3::Zero();
+    for (int j = 0; j < 3; ++j)
+    {
+        leg_vector[j] = generalized_vector[leg_v_indices_[index][j]];
+    }
+
+    return leg_vector;
 }
 
 Eigen::Matrix3d PinGo2Model::footJacobianBody(int index)

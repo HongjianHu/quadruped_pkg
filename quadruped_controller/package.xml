@@ -12,6 +12,7 @@
 
   <depend>controller_interface</depend>
 
+  <depend>ament_index_cpp</depend>
   <depend>pluginlib</depend>
   <depend>quadruped_controller_msgs</depend>
   <depend>pinocchio</depend>
