@@ -23,6 +23,10 @@ class PinGo2Model
     double mass() const;
 
     void updateModel(const std::vector<Eigen::VectorXd> &joint_pos, const std::vector<Eigen::VectorXd> &joint_vel);
+    void updateModelWithBase(const Vec3 &base_pos_world, const RotMat &base_rot_body_to_world,
+                             const Vec3 &base_linear_vel_world, const Vec3 &base_angular_vel_body,
+                             const std::vector<Eigen::VectorXd> &joint_pos,
+                             const std::vector<Eigen::VectorXd> &joint_vel);
 
     SE3 footPoseBody(int index) const;
 

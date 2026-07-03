@@ -12,7 +12,7 @@ enum class FSMStateName
     FIXEDDOWN,
     FIXEDSTAND,
     FREESTAND,
-    TROTTING,
+    MPC_TROTTING,
 
     SWINGTEST,
     BALANCETEST,

@@ -11,8 +11,8 @@
 #include "quadruped_controller/FSM/StateFixedDown.h"
 #include "quadruped_controller/FSM/StateFixedStand.h"
 #include "quadruped_controller/FSM/StateFreeStand.h"
+#include "quadruped_controller/FSM/StateMPCTrotting.h"
 #include "quadruped_controller/FSM/StatePassive.h"
-#include "quadruped_controller/FSM/StateTrotting.h"
 #include "quadruped_controller/common/CtrlInterfaces.h"
 #include "quadruped_controller/control/CtrlComponent.h"
 namespace quadruped_controller
@@ -26,7 +26,7 @@ struct FSMStateList
     std::shared_ptr<StateFixedDown> fixedDown;
     std::shared_ptr<StateFixedStand> fixedStand;
     std::shared_ptr<StateFreeStand> freeStand;
-    std::shared_ptr<StateTrotting> trotting;
+    std::shared_ptr<StateMPCTrotting> mpcTrotting;
 };
 
 // ---- 控制器主类 ----
@@ -81,13 +81,13 @@ class QuadrupedController final : public controller_interface::ControllerInterfa
     std::string command_prefix_;                   // robot_control.yaml
     std::vector<std::string> imu_interface_types_; // robot_control.yaml
     std::string foot_force_name_ = "foot_force";
-    std::vector<std::string> foot_force_interface_types_ = {"FR", "FL", "RR", "RL"};
+    std::vector<std::string> foot_force_interface_types_ = {"FL", "FR", "RL", "RR"};
     std::string odometer_name_ = "odometer";
-    std::vector<std::string> odometer_interface_types_ = {"position.x", "position.y", "position.z", "velocity.x",
-                                                          "velocity.y", "velocity.z"};
-    std::vector<std::string> feet_names_;          // robot_control.yaml
+    std::vector<std::string> odometer_interface_types_ = {"position.x", "position.y", "position.z",
+                                                          "velocity.x", "velocity.y", "velocity.z"};
+    std::vector<std::string> feet_names_; // robot_control.yaml
 
-    // FR FL RR RL
+    // FL FR RL RR
     std::vector<double> stand_pos_ = {0.0, 0.67, -1.3, 0.0, 0.67, -1.3, 0.0, 0.67, -1.3, 0.0, 0.67, -1.3};
 
     std::vector<double> down_pos_ = {0.0, 1.3, -2.4, 0.0, 1.3, -2.4, 0.0, 1.3, -2.4, 0.0, 1.3, -2.4};

@@ -65,6 +65,23 @@ void QuadrupedRobot::update()
     go2_model_->updateModel(current_joint_pos_, current_joint_vel_);
 }
 
+void QuadrupedRobot::updatePinModelWithBase(const Vec3 &base_pos_world, const RotMat &base_rot_body_to_world,
+                                            const Vec3 &base_linear_vel_world, const Vec3 &base_angular_vel_body)
+{
+    go2_model_->updateModelWithBase(base_pos_world, base_rot_body_to_world, base_linear_vel_world,
+                                    base_angular_vel_body, current_joint_pos_, current_joint_vel_);
+}
+
+go2_robot_data::PinGo2Model &QuadrupedRobot::pinModel()
+{
+    return *go2_model_;
+}
+
+const go2_robot_data::PinGo2Model &QuadrupedRobot::pinModel() const
+{
+    return *go2_model_;
+}
+
 // ---- 足端位姿 ----
 std::vector<SE3> QuadrupedRobot::getFeet2BPositions() const
 {

@@ -34,7 +34,7 @@ void ComTrajectory::generateReference(const Input &input, const Gait &gait)
         throw std::runtime_error("ComTrajectory horizon_time must be positive");
     }
 
-    horizon_steps_ = static_cast<int>(input.horizon_time / input.time_step);
+    horizon_steps_ = static_cast<int>(std::round(input.horizon_time / input.time_step));
     if (horizon_steps_ <= 0)
     {
         throw std::runtime_error("ComTrajectory horizon_steps must be positive");

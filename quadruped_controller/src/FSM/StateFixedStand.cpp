@@ -58,6 +58,8 @@ FSMStateName StateFixedStand::checkChange()
         return FSMStateName::PASSIVE;
     case 4:
         return FSMStateName::FREESTAND;
+    case 6:
+        return FSMStateName::MPC_TROTTING;
     default:
         return FSMStateName::FIXEDSTAND;
     }

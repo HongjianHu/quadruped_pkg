@@ -65,7 +65,6 @@ controller_interface::CallbackReturn QuadrupedController::on_configure(const rcl
         [this](const std_msgs::msg::String::SharedPtr msg) {
             ctrl_component_.robot_model_ =
                 std::make_shared<QuadrupedRobot>(ctrl_interfaces_, msg->data, feet_names_, base_name_, joint_names_);
-            ctrl_component_.balance_ctrl_ = std::make_shared<BalanceCtrl>(ctrl_component_.robot_model_);
         });
     estimator_debug_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("/estimator_debug", 10);
     ctrl_component_.wave_generator_ = std::make_shared<WaveGenerator>(0.45, 0.5, Vec4(0, 0.5, 0.5, 0));
@@ -211,7 +210,7 @@ controller_interface::CallbackReturn QuadrupedController::on_activate(const rclc
     state_list_.fixedDown = std::make_shared<StateFixedDown>(ctrl_interfaces_, down_pos_, stand_kp_, stand_kd_);
     state_list_.fixedStand = std::make_shared<StateFixedStand>(ctrl_interfaces_, stand_pos_, stand_kp_, stand_kd_);
     state_list_.freeStand = std::make_shared<StateFreeStand>(ctrl_interfaces_, ctrl_component_);
-    state_list_.trotting = std::make_shared<StateTrotting>(ctrl_interfaces_, ctrl_component_);
+    state_list_.mpcTrotting = std::make_shared<StateMPCTrotting>(ctrl_interfaces_, ctrl_component_);
 
     current_state_ = state_list_.passive;
     current_state_->enter();
@@ -412,8 +411,8 @@ std::shared_ptr<FSMState> QuadrupedController::getNextState(FSMStateName stateNa
         return state_list_.fixedStand;
     case FSMStateName::FREESTAND:
         return state_list_.freeStand;
-    case FSMStateName::TROTTING:
-        return state_list_.trotting;
+    case FSMStateName::MPC_TROTTING:
+        return state_list_.mpcTrotting;
     default:
         return state_list_.invalid;
     }

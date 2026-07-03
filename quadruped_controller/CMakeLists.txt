@@ -30,7 +30,6 @@ set(CONTROLLER_INCLUDE_DEPENDS
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(qpOASES REQUIRED)
 find_package(OsqpEigen REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 foreach(Dependency IN ITEMS ${CONTROLLER_INCLUDE_DEPENDS})
@@ -42,15 +41,12 @@ add_library(${PROJECT_NAME} SHARED
     src/FSM/StatePassive.cpp
     src/FSM/StateFixedDown.cpp
     src/FSM/StateFreeStand.cpp
-    src/FSM/StateTrotting.cpp
+    src/FSM/StateMPCTrotting.cpp
     src/FSM/StateFixedStand.cpp
     src/robot/QuadrupedRobot.cpp
     src/control/LowPassFilter.cpp
     src/control/Estimator.cpp
-    src/control/BalanceCtrl.cpp
     src/control/LegController.cpp
-    src/gait/FeetEndCalc.cpp
-    src/gait/GaitGenerator.cpp
     src/gait/WaveGenerator.cpp
     src/gait/Gait.cpp
     src/robot/go2_robot_data/PinGo2Model.cpp
@@ -74,79 +70,10 @@ ament_target_dependencies(
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
   Eigen3::Eigen
-  qpOASES
   OsqpEigen::OsqpEigen
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
-)
-
-add_executable(gait_debug
-    src/gait/GaitDebug.cpp
-)
-
-target_link_libraries(gait_debug
-    PRIVATE
-    ${PROJECT_NAME}
-)
-
-set_target_properties(gait_debug PROPERTIES
-    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
-)
-
-add_executable(com_trajectory_debug
-    src/mpc/ComTrajectoryDebug.cpp
-)
-
-target_link_libraries(com_trajectory_debug
-    PRIVATE
-    ${PROJECT_NAME}
-)
-
-set_target_properties(com_trajectory_debug PROPERTIES
-    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
-)
-
-add_executable(osqp_eigen_test
-    src/mpc/OsqpEigentest.cpp
-)
-
-target_link_libraries(osqp_eigen_test
-    PRIVATE
-    OsqpEigen::OsqpEigen
-)
-
-set_target_properties(osqp_eigen_test PROPERTIES
-    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
-)
-
-add_executable(centroidal_mpc_debug
-    src/mpc/CentroidalMPCDebug.cpp
-)
-
-target_link_libraries(centroidal_mpc_debug
-    PRIVATE
-    ${PROJECT_NAME}
-)
-
-set_target_properties(centroidal_mpc_debug PROPERTIES
-    INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
-)
-
-add_executable(leg_controller_debug
-    src/control/LegControllerDebug.cpp
-)
-
-target_link_libraries(leg_controller_debug
-    ${PROJECT_NAME}
-)
-
-ament_target_dependencies(leg_controller_debug
-    ament_index_cpp
-)
-
-set_target_properties(leg_controller_debug PROPERTIES
     INSTALL_RPATH "${QUADRUPED_THIRD_PARTY_RPATH}"
 )
 
@@ -163,11 +90,6 @@ install(
     ARCHIVE DESTINATION lib/${PROJECT_NAME}
     LIBRARY DESTINATION lib/${PROJECT_NAME}
     RUNTIME DESTINATION bin
-)
-
-install(
-    TARGETS gait_debug com_trajectory_debug osqp_eigen_test centroidal_mpc_debug leg_controller_debug
-    RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_export_dependencies(${CONTROLLER_INCLUDE_DEPENDS})

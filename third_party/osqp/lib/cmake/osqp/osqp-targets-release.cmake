@@ -1,15 +1,15 @@
 #----------------------------------------------------------------
-# Generated CMake target import file.
+# Generated CMake target import file for configuration "Release".
 #----------------------------------------------------------------
 
 # Commands may need to know the format version.
 set(CMAKE_IMPORT_FILE_VERSION 1)
 
-# Import target "osqp::osqp" for configuration ""
-set_property(TARGET osqp::osqp APPEND PROPERTY IMPORTED_CONFIGURATIONS NOCONFIG)
+# Import target "osqp::osqp" for configuration "Release"
+set_property(TARGET osqp::osqp APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)
 set_target_properties(osqp::osqp PROPERTIES
-  IMPORTED_LOCATION_NOCONFIG "${_IMPORT_PREFIX}/lib/libosqp.so"
-  IMPORTED_SONAME_NOCONFIG "libosqp.so"
+  IMPORTED_LOCATION_RELEASE "${_IMPORT_PREFIX}/lib/libosqp.so"
+  IMPORTED_SONAME_RELEASE "libosqp.so"
   )
 
 list(APPEND _IMPORT_CHECK_TARGETS osqp::osqp )

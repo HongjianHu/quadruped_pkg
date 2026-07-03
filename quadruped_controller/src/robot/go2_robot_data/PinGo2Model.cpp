@@ -70,21 +70,49 @@ double PinGo2Model::mass() const
 void PinGo2Model::updateModel(const std::vector<Eigen::VectorXd> &joint_pos,
                               const std::vector<Eigen::VectorXd> &joint_vel)
 {
+    updateModelWithBase(Vec3::Zero(), RotMat::Identity(), Vec3::Zero(), Vec3::Zero(), joint_pos, joint_vel);
+}
+
+void PinGo2Model::updateModelWithBase(const Vec3 &base_pos_world, const RotMat &base_rot_body_to_world,
+                                      const Vec3 &base_linear_vel_world, const Vec3 &base_angular_vel_body,
+                                      const std::vector<Eigen::VectorXd> &joint_pos,
+                                      const std::vector<Eigen::VectorXd> &joint_vel)
+{
     if (joint_pos.size() != 4 || joint_vel.size() != 4)
     {
         throw std::runtime_error("PinGo2Model expects 4 legs");
+    }
+    for (int leg = 0; leg < 4; ++leg)
+    {
+        if (joint_pos[leg].size() < 3 || joint_vel[leg].size() < 3)
+        {
+            throw std::runtime_error("PinGo2Model expects 3 joints per leg");
+        }
     }
 
     q_ = pinocchio::neutral(model_);
     dq_.setZero();
 
+    q_.segment<3>(0) = base_pos_world;
+
+    Eigen::Quaterniond base_quat(base_rot_body_to_world);
+    base_quat.normalize();
+
+    q_[3] = base_quat.x();
+    q_[4] = base_quat.y();
+    q_[5] = base_quat.z();
+    q_[6] = base_quat.w();
+
+    dq_.segment<3>(0) = base_rot_body_to_world.transpose() * base_linear_vel_world;
+    dq_.segment<3>(3) = base_angular_vel_body;
+
     for (int leg = 0; leg < 4; ++leg)
     {
-        for (int j = 0; j < 3; ++j)
-        {
-            q_[leg_q_indices_[leg][j]] = joint_pos[leg][j];
-            dq_[leg_v_indices_[leg][j]] = joint_vel[leg][j];
-        }
+        const int q_start = 7 + 3 * leg;
+        const int v_start = 6 + 3 * leg;
+
+        q_.segment<3>(q_start) = joint_pos[leg].segment<3>(0);
+        dq_.segment<3>(v_start) = joint_vel[leg].segment<3>(0);
     }
 
     pinocchio::forwardKinematics(model_, data_, q_, dq_);

@@ -23,6 +23,11 @@ class QuadrupedRobot
 
     /// 从硬件接口更新当前关节位置/速度
     void update();
+    void updatePinModelWithBase(const Vec3 &base_pos_world, const RotMat &base_rot_body_to_world,
+                                const Vec3 &base_linear_vel_world, const Vec3 &base_angular_vel_body);
+
+    go2_robot_data::PinGo2Model &pinModel();
+    const go2_robot_data::PinGo2Model &pinModel() const;
 
     // ---- 足端位姿 ----
     std::vector<SE3> getFeet2BPositions() const;

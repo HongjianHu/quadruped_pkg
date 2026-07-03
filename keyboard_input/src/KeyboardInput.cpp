@@ -19,8 +19,10 @@ KeyboardInput::KeyboardInput() : Node("keyboard_input_node")
     new_tio_.c_lflag &= (~ICANON & ~ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio_);
     RCLCPP_INFO(get_logger(), "Keyboard input node started.");
-    RCLCPP_INFO(get_logger(), "Mode keys: 1 PASSIVE, 2 FIXEDSTAND, 3 TROTTING, 4 FREESTAND.");
-    RCLCPP_INFO(get_logger(), "FreeStand keys: A/D roll, W/S pitch, J/L yaw, I/K height, Space reset.");
+    RCLCPP_INFO(get_logger(), "Mode keys: 1 PASSIVE, 2 FIXEDSTAND, 4 FREESTAND, 6 MPC_TROTTING.");
+    RCLCPP_INFO(get_logger(), "FreeStand keys: A/D roll, W/S pitch, J/L yaw, I/K height.");
+    RCLCPP_INFO(get_logger(), "MPC keys: A/D lx, W/S ly, J/L yaw rate, I/K height.");
+    RCLCPP_INFO(get_logger(), "Space resets command axes.");
     RCLCPP_INFO(get_logger(), "Please input keys, press Ctrl+C to quit.");
 }
 
@@ -73,29 +75,11 @@ void KeyboardInput::check_command(const char key)
     case '2':
         inputs_.command = 2;
         break;
-    case '3':
-        inputs_.command = 3;
-        break;
     case '4':
         inputs_.command = 4;
         break;
-    case '5':
-        inputs_.command = 5;
-        break;
     case '6':
         inputs_.command = 6;
-        break;
-    case '7':
-        inputs_.command = 7;
-        break;
-    case '8':
-        inputs_.command = 8;
-        break;
-    case '9':
-        inputs_.command = 9;
-        break;
-    case '0':
-        inputs_.command = 10;
         break;
     case ' ':
         inputs_.lx = 0;

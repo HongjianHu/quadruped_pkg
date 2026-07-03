@@ -3,15 +3,22 @@ install/
 log/
 CMakeFiles/
 third_party/build/
+third_party/build/
 third_party/osqp_src/
 third_party/osqp-eigen_src/
-third_party/osqp/share/osqp/codegen_files/
 __pycache__/
 *.pyc
 .vscode/
 *.swp
 *.swo
 *~
+
+# Local debug-only sources
+quadruped_controller/src/**/*Debug.cpp
+quadruped_controller/src/**/*debug.cpp
+quadruped_controller/src/mpc/OsqpEigentest.cpp
+
 .agents
 .codex
 *.md
+.clang-format

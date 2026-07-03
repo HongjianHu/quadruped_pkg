@@ -109,8 +109,8 @@ void viewerCursorPosCallback(GLFWwindow *window, double xpos, double ypos)
         return;
     }
 
-    const bool shift_pressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
-                               glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+    const bool shift_pressed =
+        glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
 
     int action = mjMOUSE_NONE;
     if (middle_button)
@@ -315,14 +315,15 @@ hardware_interface::CallbackReturn QuadrupedMujocoHardware::on_init(const hardwa
         foot_force_state_.assign(4, 0.0);
     }
 
-    const std::array<std::string, 4> foot_geom_names = {"FR", "FL", "RR", "RL"};
+    const std::array<std::string, 4> foot_geom_names = {"FL", "FR", "RL", "RR"};
     for (std::size_t i = 0; i < foot_geom_names.size(); ++i)
     {
         foot_geom_ids_[i] = mj_name2id(model_, mjOBJ_GEOM, foot_geom_names[i].c_str());
         if (foot_geom_ids_[i] < 0)
         {
             RCLCPP_WARN(rclcpp::get_logger("quadruped_mujoco_hardware"),
-                        "Foot geom '%s' not found; its foot_force interface will stay zero", foot_geom_names[i].c_str());
+                        "Foot geom '%s' not found; its foot_force interface will stay zero",
+                        foot_geom_names[i].c_str());
         }
     }
 
@@ -335,8 +336,7 @@ hardware_interface::CallbackReturn QuadrupedMujocoHardware::on_init(const hardwa
         odometer_state_.assign(6, 0.0);
     }
     RCLCPP_INFO(rclcpp::get_logger("quadruped_mujoco_hardware"),
-                "Loaded MuJoCo model '%s': nq=%ld nv=%ld nu=%ld joints=%zu timestep=%.6f viewer=%s",
-                model_path.c_str(),
+                "Loaded MuJoCo model '%s': nq=%ld nv=%ld nu=%ld joints=%zu timestep=%.6f viewer=%s", model_path.c_str(),
                 static_cast<long>(model_->nq), static_cast<long>(model_->nv), static_cast<long>(model_->nu),
                 joint_count, model_->opt.timestep, viewer_enabled_ ? "true" : "false");
 
@@ -602,8 +602,7 @@ void QuadrupedMujocoHardware::viewerLoop()
         }
     }
 
-    const auto frame_period =
-        std::chrono::duration<double>(1.0 / std::max(1.0, viewer_refresh_hz_));
+    const auto frame_period = std::chrono::duration<double>(1.0 / std::max(1.0, viewer_refresh_hz_));
     RCLCPP_INFO(logger,
                 "Embedded MuJoCo viewer started. Controls: left-drag rotate, right-drag pan, shift+drag alternate "
                 "plane, middle-drag/wheel zoom");
