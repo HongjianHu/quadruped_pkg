@@ -47,9 +47,9 @@ class StateMPCTrotting : public FSMState
     static constexpr double kDefaultBaseHeight = 0.27;
     static constexpr double kMinBaseHeight = 0.20;
     static constexpr double kMaxBaseHeight = 0.42;
-    static constexpr double kMaxForwardVelocity = 0.35;
-    static constexpr double kMaxLateralVelocity = 0.25;
-    static constexpr double kMaxYawRate = 0.60;
+    static constexpr double kMaxForwardVelocity = 0.50;
+    static constexpr double kMaxLateralVelocity = 0.32;
+    static constexpr double kMaxYawRate = 0.80;
     static constexpr double kMaxHeightRate = 0.08;
     static constexpr double kHipTorqueLimit = 23.0;
     static constexpr double kThighTorqueLimit = 23.0;

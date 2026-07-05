@@ -5,7 +5,7 @@
 
 		<hardware>
   			<plugin>quadruped_mujoco_hardware/QuadrupedMujocoHardware</plugin>
-  			<param name="model_path">$(find go2_description)/mujoco/go2_unitree/scene.xml</param>
+  			<param name="model_path">$(arg MUJOCO_SCENE)</param>
   			<param name="initial_keyframe">home</param>
   			<param name="sim_timestep">0.001</param>
   			<param name="enable_viewer">$(arg MUJOCO_VIEWER)</param>

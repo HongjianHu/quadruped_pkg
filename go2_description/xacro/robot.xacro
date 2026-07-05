@@ -6,6 +6,7 @@
   <xacro:arg name="GAZEBO" default="false"/>
   <xacro:arg name="CLASSIC" default="false"/>
   <xacro:arg name="MUJOCO_VIEWER" default="false"/>
+  <xacro:arg name="MUJOCO_SCENE" default="$(find go2_description)/mujoco/go2_unitree/scene.xml"/>
 
   <xacro:include filename="$(find go2_description)/xacro/const.xacro"/>
   <xacro:include filename="$(find go2_description)/xacro/materials.xacro"/>

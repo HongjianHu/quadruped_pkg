@@ -17,6 +17,9 @@ def launch_setup(context, *args, **kwargs):
 
     description_pkg_path = get_package_share_directory(package_description)
     xacro_file = os.path.join(description_pkg_path, "xacro", "robot.xacro")
+    mujoco_scene = context.launch_configurations["mujoco_scene"]
+    if not os.path.isabs(mujoco_scene):
+        mujoco_scene = os.path.join(description_pkg_path, "mujoco", "go2_unitree", mujoco_scene)
 
     robot_description = xacro.process_file(
         xacro_file,
@@ -25,6 +28,7 @@ def launch_setup(context, *args, **kwargs):
             "CLASSIC": "false",
             "DEBUG": "false",
             "MUJOCO_VIEWER": context.launch_configurations["use_embedded_mujoco_viewer"],
+            "MUJOCO_SCENE": mujoco_scene,
         },
     ).toxml()
 
@@ -44,12 +48,7 @@ def launch_setup(context, *args, **kwargs):
     ]
     )
 
-    mujoco_model = os.path.join(
-        description_pkg_path,
-        "mujoco",
-        "go2",
-        "scene.xml",
-    )
+    mujoco_model = mujoco_scene
 
     robot_state_publisher = Node(
         package="robot_state_publisher",
@@ -172,6 +171,11 @@ def generate_launch_description():
         default_value="true",
         description="Start the MuJoCo viewer attached to the ros2_control hardware simulation.",
     )
+    mujoco_scene = DeclareLaunchArgument(
+        "mujoco_scene",
+        default_value="scene.xml",
+        description="MuJoCo scene file. Use an absolute path or a file under go2_description/mujoco/go2_unitree.",
+    )
 
     return LaunchDescription(
         [
@@ -179,6 +183,7 @@ def generate_launch_description():
             use_rviz,
             use_mujoco_viewer,
             use_embedded_mujoco_viewer,
+            mujoco_scene,
             OpaqueFunction(function=launch_setup),
         ]
     )

@@ -13,6 +13,7 @@ find_package(rclcpp REQUIRED)
 find_package(quadruped_controller_msgs REQUIRED)
 
 add_executable(keyboard_input src/KeyboardInput.cpp)
+add_executable(mpc_command_scheduler src/MpcCommandScheduler.cpp)
 target_include_directories(keyboard_input
         PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
@@ -22,9 +23,15 @@ ament_target_dependencies(
         rclcpp
         quadruped_controller_msgs
 )
+ament_target_dependencies(
+        mpc_command_scheduler PUBLIC
+        rclcpp
+        quadruped_controller_msgs
+)
 
 install(TARGETS
         keyboard_input
+        mpc_command_scheduler
         DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

@@ -284,6 +284,21 @@ void QuadrupedController::publishEstimatorDebug(const rclcpp::Time &time)
 
     Vec3 odom_pos = Vec3::Constant(kNaN);
     Vec3 odom_vel = Vec3::Constant(kNaN);
+    Vec3 angular_vel_world = Vec3::Constant(kNaN);
+    if (ctrl_interfaces_.imu_state_interface_.size() >= 7)
+    {
+        Quat quat_wxyz;
+        quat_wxyz << ctrl_interfaces_.imu_state_interface_[0].get().get_value(),
+            ctrl_interfaces_.imu_state_interface_[1].get().get_value(),
+            ctrl_interfaces_.imu_state_interface_[2].get().get_value(),
+            ctrl_interfaces_.imu_state_interface_[3].get().get_value();
+
+        Vec3 angular_vel_body;
+        angular_vel_body << ctrl_interfaces_.imu_state_interface_[4].get().get_value(),
+            ctrl_interfaces_.imu_state_interface_[5].get().get_value(),
+            ctrl_interfaces_.imu_state_interface_[6].get().get_value();
+        angular_vel_world = quatToRotMat(quat_wxyz) * angular_vel_body;
+    }
     if (ctrl_interfaces_.odometer_state_interface_.size() >= 6)
     {
         odom_pos << ctrl_interfaces_.odometer_state_interface_[0].get().get_value(),
@@ -297,12 +312,12 @@ void QuadrupedController::publishEstimatorDebug(const rclcpp::Time &time)
     std_msgs::msg::Float64MultiArray msg;
     msg.layout.dim.resize(1);
     msg.layout.dim[0].label =
-        "t,est_pos3,est_vel3,rpy3,acc_body3,u_world3,odom_pos3,odom_vel3,feet_pos_world12,foot_force4,"
+        "t,est_pos3,est_vel3,rpy3,ang_vel_world3,acc_body3,u_world3,odom_pos3,odom_vel3,feet_pos_world12,foot_force4,"
         "force_contact4,slip_detected4,est_contact4,wave_contact4,phase4,pos_err3,vel_err3,"
         "odom_contact_pos_world12,odom_contact_clearance4";
-    msg.layout.dim[0].size = 80;
-    msg.layout.dim[0].stride = 80;
-    msg.data.reserve(80);
+    msg.layout.dim[0].size = 83;
+    msg.layout.dim[0].stride = 83;
+    msg.data.reserve(83);
 
     msg.data.push_back(time.seconds());
 
@@ -312,6 +327,8 @@ void QuadrupedController::publishEstimatorDebug(const rclcpp::Time &time)
         msg.data.push_back(est_vel[i]);
     for (int i = 0; i < 3; ++i)
         msg.data.push_back(rpy[i]);
+    for (int i = 0; i < 3; ++i)
+        msg.data.push_back(angular_vel_world[i]);
     for (int i = 0; i < 3; ++i)
         msg.data.push_back(acc_body[i]);
     for (int i = 0; i < 3; ++i)

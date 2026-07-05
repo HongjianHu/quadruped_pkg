@@ -1,6 +1,7 @@
 build/
 install/
 log/
+logs/
 CMakeFiles/
 third_party/build/
 third_party/build/
@@ -22,3 +23,7 @@ quadruped_controller/src/mpc/OsqpEigentest.cpp
 .codex
 *.md
 .clang-format
+.colcon_build/
+.colcon_install/
+.colcon_log/
+__pycache__/
