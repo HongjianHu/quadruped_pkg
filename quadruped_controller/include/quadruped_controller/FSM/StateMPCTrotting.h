@@ -42,8 +42,6 @@ class StateMPCTrotting : public FSMState
     static constexpr double kGaitDuty = 0.6;
     static constexpr double kSwingHeight = 0.10;
     static constexpr double kEntryHoldDuration = 1.0;
-    static constexpr double kMaxNormalForce = 180.0;
-    static constexpr double kFrictionCoefficient = 0.8;
     static constexpr double kDefaultBaseHeight = 0.27;
     static constexpr double kMinBaseHeight = 0.20;
     static constexpr double kMaxBaseHeight = 0.42;
@@ -61,15 +59,21 @@ class StateMPCTrotting : public FSMState
     void captureNominalFootOffsets();
     bool readRawBaseState(RawBaseState &state) const;
     bool syncPinModelWithRawState(const RawBaseState &state);
+
     double gaitTime() const;
+    void updateSharedGaitState(double gait_time, const VecInt4 &contact);
+
     void updateDesiredCommand(double dt, const RotMat &yaw_rotation_body_to_world);
+
     Vec34 buildCurrentFootLeversWorld(const RawBaseState &base_state) const;
     Vec34 buildTouchdownPositionsWorld(const RotMat &yaw_rotation_body_to_world, const Vec3 &desired_velocity_world,
                                        double desired_yaw_rate, const RawBaseState &base_state) const;
     Vec12 buildInitialMpcState(const RawBaseState &base_state) const;
     Vec34 buildFallbackContactForces(const VecInt4 &mask) const;
+
     Vec34 sanitizeContactForces(const Vec34 &forces_world, const VecInt4 &mask) const;
     Vec34 enforceCurrentContactMask(const Vec34 &forces_world, const VecInt4 &mask) const;
+
     static Mat3 bodyInertiaWorld(const RotMat &base_rotation_body_to_world);
     static double clampJointTorque(double torque, int joint);
     void commandHoldPosition();

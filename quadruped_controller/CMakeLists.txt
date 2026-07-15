@@ -47,7 +47,6 @@ add_library(${PROJECT_NAME} SHARED
     src/control/LowPassFilter.cpp
     src/control/Estimator.cpp
     src/control/LegController.cpp
-    src/gait/WaveGenerator.cpp
     src/gait/Gait.cpp
     src/robot/go2_robot_data/PinGo2Model.cpp
     src/mpc/ComTrajectory.cpp

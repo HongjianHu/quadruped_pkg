@@ -1,7 +1,6 @@
 #include "quadruped_controller/QuadrupedController.h"
 
 #include "quadruped_controller/common/mathTools.h"
-#include "quadruped_controller/gait/WaveGenerator.h"
 #include "quadruped_controller/robot/QuadrupedRobot.h"
 
 #include <limits>
@@ -67,7 +66,6 @@ controller_interface::CallbackReturn QuadrupedController::on_configure(const rcl
                 std::make_shared<QuadrupedRobot>(ctrl_interfaces_, msg->data, feet_names_, base_name_, joint_names_);
         });
     estimator_debug_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("/estimator_debug", 10);
-    ctrl_component_.wave_generator_ = std::make_shared<WaveGenerator>(0.45, 0.5, Vec4(0, 0.5, 0.5, 0));
     return CallbackReturn::SUCCESS;
 }
 
@@ -230,7 +228,6 @@ controller_interface::return_type QuadrupedController::update(const rclcpp::Time
         return controller_interface::return_type::OK;
     }
     ctrl_component_.robot_model_->update();
-    ctrl_component_.wave_generator_->update();
     ctrl_component_.estimator_->update();
     publishEstimatorDebug(time);
 
@@ -263,8 +260,7 @@ controller_interface::return_type QuadrupedController::update(const rclcpp::Time
 
 void QuadrupedController::publishEstimatorDebug(const rclcpp::Time &time)
 {
-    if (estimator_debug_publisher_ == nullptr || ctrl_component_.estimator_ == nullptr ||
-        ctrl_component_.wave_generator_ == nullptr)
+    if (estimator_debug_publisher_ == nullptr || ctrl_component_.estimator_ == nullptr)
     {
         return;
     }
@@ -313,7 +309,7 @@ void QuadrupedController::publishEstimatorDebug(const rclcpp::Time &time)
     msg.layout.dim.resize(1);
     msg.layout.dim[0].label =
         "t,est_pos3,est_vel3,rpy3,ang_vel_world3,acc_body3,u_world3,odom_pos3,odom_vel3,feet_pos_world12,foot_force4,"
-        "force_contact4,slip_detected4,est_contact4,wave_contact4,phase4,pos_err3,vel_err3,"
+        "force_contact4,slip_detected4,est_contact4,gait_contact4,gait_phase4,pos_err3,vel_err3,"
         "odom_contact_pos_world12,odom_contact_clearance4";
     msg.layout.dim[0].size = 83;
     msg.layout.dim[0].stride = 83;
@@ -365,9 +361,9 @@ void QuadrupedController::publishEstimatorDebug(const rclcpp::Time &time)
     for (int leg = 0; leg < 4; ++leg)
         msg.data.push_back(estimator_contact[leg]);
     for (int leg = 0; leg < 4; ++leg)
-        msg.data.push_back(ctrl_component_.wave_generator_->contact_[leg]);
+        msg.data.push_back(ctrl_component_.gait_contact_[leg]);
     for (int leg = 0; leg < 4; ++leg)
-        msg.data.push_back(ctrl_component_.wave_generator_->phase_[leg]);
+        msg.data.push_back(ctrl_component_.gait_phase_[leg]);
 
     for (int i = 0; i < 3; ++i)
         msg.data.push_back(est_pos[i] - odom_pos[i]);

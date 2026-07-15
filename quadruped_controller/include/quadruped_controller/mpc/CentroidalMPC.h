@@ -13,8 +13,9 @@ class CentroidalMPC
   public:
     static constexpr int kStateDim = 12;
     static constexpr int kInputDim = 12;
-    static constexpr double kFrictionCoefficient = 0.8;
-    static constexpr double kMinNormalForce = 10.0;
+    static constexpr double kFrictionCoefficient = 0.4;
+    static constexpr double kMinNormalForce = 0.0;
+    static constexpr double kMaxNormalForce = 180.0;
     static constexpr double kBoundInfinity = 1.0e10;
     explicit CentroidalMPC(int horizon_steps);
 

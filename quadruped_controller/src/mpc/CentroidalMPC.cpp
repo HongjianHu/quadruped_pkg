@@ -161,22 +161,26 @@ void CentroidalMPC::buildFrictionMatrix()
             const int fy = input_base + 3 * leg + 1;
             const int fz = input_base + 3 * leg + 2;
 
-            // fx - mu * fz <= 0
+            // fx + fy - mu * fz <= 0
             triplets.emplace_back(row, fx, 1.0);
-            triplets.emplace_back(row, fz, -kFrictionCoefficient);
-            ++row;
-
-            // -fx - mu * fz <= 0
-            triplets.emplace_back(row, fx, -1.0);
-            triplets.emplace_back(row, fz, -kFrictionCoefficient);
-            ++row;
-
-            // fy - mu * fz <= 0
             triplets.emplace_back(row, fy, 1.0);
             triplets.emplace_back(row, fz, -kFrictionCoefficient);
             ++row;
 
-            // -fy - mu * fz <= 0
+            // fx - fy - mu * fz <= 0
+            triplets.emplace_back(row, fx, 1.0);
+            triplets.emplace_back(row, fy, -1.0);
+            triplets.emplace_back(row, fz, -kFrictionCoefficient);
+            ++row;
+
+            // -fx + fy - mu * fz <= 0
+            triplets.emplace_back(row, fx, -1.0);
+            triplets.emplace_back(row, fy, 1.0);
+            triplets.emplace_back(row, fz, -kFrictionCoefficient);
+            ++row;
+
+            // -fx - fy - mu * fz <= 0
+            triplets.emplace_back(row, fx, -1.0);
             triplets.emplace_back(row, fy, -1.0);
             triplets.emplace_back(row, fz, -kFrictionCoefficient);
             ++row;
@@ -236,6 +240,10 @@ VecX CentroidalMPC::buildVariableUpperBound(const ComTrajectory &traj) const
             if (contact_table(leg, k) == 0)
             {
                 upper_bound.segment<3>(force_base).setZero();
+            }
+            else
+            {
+                upper_bound[force_base + 2] = CentroidalMPC::kMaxNormalForce;
             }
         }
     }

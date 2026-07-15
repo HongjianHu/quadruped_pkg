@@ -9,14 +9,12 @@
 #include "quadruped_controller/common/mathTypes.h"
 #include "quadruped_controller/control/CtrlComponent.h"
 #include "quadruped_controller/control/LowPassFilter.h"
-#include "quadruped_controller/gait/WaveGenerator.h"
 #include "quadruped_controller/robot/QuadrupedRobot.h"
 
 namespace quadruped_controller
 {
 
 struct CtrlInterfaces;
-class WaveGenerator;
 class QuadrupedRobot;
 struct CtrlComponent;
 
@@ -142,7 +140,8 @@ class KalmanFilterEstimate
 
     CtrlInterfaces &ctrl_interfaces_;
     std::shared_ptr<QuadrupedRobot> &robot_model_;
-    std::shared_ptr<WaveGenerator> &wave_generator_;
+    VecInt4 &gait_contact_;
+    Vec4 &gait_phase_;
 
     // 18 维状态：位置(3) + 速度(3) + 足端位置(3×4)
     Eigen::Matrix<double, 18, 1> x_hat_;

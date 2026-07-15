@@ -31,13 +31,6 @@ enum class FrameType
     GLOBAL
 };
 
-enum class WaveStatus
-{
-    STANCE_ALL,
-    SWING_ALL,
-    WAVE_ALL
-};
-
 } // namespace quadruped_controller
 
 #endif // ENUMCLASS_H

@@ -11,7 +11,7 @@ namespace quadruped_controller
 // 通过IMU可以得到世界坐标系{s}下的机身姿态Rsb，机身坐标系{b}下的加速度ab，以及旋转角速度wb
 KalmanFilterEstimate::KalmanFilterEstimate(CtrlInterfaces &ctrl_interfaces, CtrlComponent &ctrl_component)
     : ctrl_interfaces_(ctrl_interfaces), robot_model_(ctrl_component.robot_model_),
-      wave_generator_(ctrl_component.wave_generator_)
+      gait_contact_(ctrl_component.gait_contact_), gait_phase_(ctrl_component.gait_phase_)
 {
 
     g_ << 0, 0, -9.81;
@@ -138,7 +138,7 @@ void KalmanFilterEstimate::updateEstimatorContact()
 {
     for (int i = 0; i < 4; ++i)
     {
-        const int phase_contact = wave_generator_->contact_[i] == 1 ? 1 : 0;
+        const int phase_contact = gait_contact_[i] == 1 ? 1 : 0;
 
         if (!contact_gate_initialized_)
         {
@@ -169,7 +169,8 @@ void KalmanFilterEstimate::updateEstimatorContact()
         slip_detected_[i] = slip_detected ? 1 : 0;
 
         const bool past_switch_blind_time = phase_contact_elapsed_[i] >= kContactSwitchBlindTime;
-        estimator_contact_[i] = (phase_contact == 1 && force_contact && past_switch_blind_time && !slip_detected) ? 1 : 0;
+        estimator_contact_[i] =
+            (phase_contact == 1 && force_contact && past_switch_blind_time && !slip_detected) ? 1 : 0;
     }
 
     contact_gate_initialized_ = true;
@@ -222,7 +223,7 @@ void KalmanFilterEstimate::update()
         int rIndex2 = 12 + rIndex1;
         int rIndex3 = 2 * 12 + i;
 
-        const double trust = windowFunc(wave_generator_->phase_[i], 0.2);
+        const double trust = windowFunc(gait_phase_[i], 0.2);
         if (estimator_contact_[i] == 0)
         {
             Q.block(qIndex, qIndex, 3, 3) = large_variance_ * Mat3::Identity(3, 3);

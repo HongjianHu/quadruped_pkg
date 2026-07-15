@@ -2,7 +2,6 @@
 
 #include "quadruped_controller/common/mathTools.h"
 #include "quadruped_controller/control/CtrlComponent.h"
-#include "quadruped_controller/gait/WaveGenerator.h"
 #include "quadruped_controller/robot/QuadrupedRobot.h"
 
 #include <algorithm>
@@ -30,10 +29,8 @@ void StateMPCTrotting::enter()
     last_contact_forces_world_.setZero();
     leg_controller_ = LegController();
 
-    if (ctrl_component_.wave_generator_)
-    {
-        ctrl_component_.wave_generator_->restart(WaveStatus::WAVE_ALL);
-    }
+    ctrl_component_.gait_contact_.setOnes();
+    ctrl_component_.gait_phase_.setConstant(0.5);
 
     RawBaseState base_state;
     const bool has_raw_base_state = readRawBaseState(base_state);
@@ -77,9 +74,8 @@ void StateMPCTrotting::run(const rclcpp::Time & /*time*/, const rclcpp::Duration
         commandHoldPosition();
         if (elapsed_time_ >= next_debug_time_)
         {
-            RCLCPP_INFO(rclcpp::get_logger("StateMPCTrotting"),
-                        "MPC entry hold t=%.3f raw_base=[%.3f %.3f %.3f]", elapsed_time_,
-                        base_state.pos_world.x(), base_state.pos_world.y(), base_state.pos_world.z());
+            RCLCPP_INFO(rclcpp::get_logger("StateMPCTrotting"), "MPC entry hold t=%.3f raw_base=[%.3f %.3f %.3f]",
+                        elapsed_time_, base_state.pos_world.x(), base_state.pos_world.y(), base_state.pos_world.z());
             next_debug_time_ += 0.5;
         }
         return;
@@ -103,9 +99,10 @@ void StateMPCTrotting::run(const rclcpp::Time & /*time*/, const rclcpp::Duration
 
     const double active_gait_time = gaitTime();
     const VecInt4 current_mask = gait_.computeCurrentMask(active_gait_time);
-    const Vec34 touchdown_positions_world =
-        buildTouchdownPositionsWorld(yaw_rotation_body_to_world, desired_velocity_world, desired_yaw_rate_body,
-                                     base_state);
+
+    updateSharedGaitState(active_gait_time, current_mask);
+    const Vec34 touchdown_positions_world = buildTouchdownPositionsWorld(
+        yaw_rotation_body_to_world, desired_velocity_world, desired_yaw_rate_body, base_state);
 
     if (!has_mpc_solution_ || elapsed_time_ >= next_mpc_update_time_)
     {
@@ -153,8 +150,8 @@ void StateMPCTrotting::run(const rclcpp::Time & /*time*/, const rclcpp::Duration
     Vec12 joint_torques = Vec12::Zero();
     for (int leg = 0; leg < 4; ++leg)
     {
-        const LegOutput leg_output =
-            leg_controller_.computeLegTorque(leg, pin_model, gait_, last_contact_forces_world_.col(leg), active_gait_time);
+        const LegOutput leg_output = leg_controller_.computeLegTorque(
+            leg, pin_model, gait_, last_contact_forces_world_.col(leg), active_gait_time);
 
         for (int joint = 0; joint < 3; ++joint)
         {
@@ -168,7 +165,8 @@ void StateMPCTrotting::run(const rclcpp::Time & /*time*/, const rclcpp::Duration
     if (elapsed_time_ >= next_debug_time_)
     {
         RCLCPP_INFO(rclcpp::get_logger("StateMPCTrotting"),
-                    "MPC t=%.3f mask=[%d %d %d %d] raw_base=[%.3f %.3f %.3f] raw_v=[%.3f %.3f %.3f] Fz=[%.1f %.1f %.1f %.1f] tau_norm=%.2f",
+                    "MPC t=%.3f mask=[%d %d %d %d] raw_base=[%.3f %.3f %.3f] raw_v=[%.3f %.3f %.3f] Fz=[%.1f %.1f %.1f "
+                    "%.1f] tau_norm=%.2f",
                     elapsed_time_, current_mask[0], current_mask[1], current_mask[2], current_mask[3],
                     base_state.pos_world.x(), base_state.pos_world.y(), base_state.pos_world.z(),
                     base_state.linear_vel_world.x(), base_state.linear_vel_world.y(), base_state.linear_vel_world.z(),
@@ -180,6 +178,10 @@ void StateMPCTrotting::run(const rclcpp::Time & /*time*/, const rclcpp::Duration
 
 void StateMPCTrotting::exit()
 {
+    // 进入FixedStand或FreeStand后，Estimator不会继续按照交替小跑接触进行门控
+    ctrl_component_.gait_contact_.setOnes();
+    ctrl_component_.gait_phase_.setConstant(0.5);
+
     commandZero();
 }
 
@@ -286,6 +288,25 @@ double StateMPCTrotting::gaitTime() const
 {
     return std::max(0.0, elapsed_time_ - kEntryHoldDuration);
 }
+// Estimator需要阶段内部相位，windowFunc是相对于摆动腿的摆动进度改变置信度的，而不是一个gait周期，所以需要归一化
+void StateMPCTrotting::updateSharedGaitState(const double gait_time, const VecInt4 &contact)
+{
+    const Vec4 cycle_phase = gait_.computePhase(gait_time);
+
+    ctrl_component_.gait_contact_ = contact;
+
+    for (int leg = 0; leg < 4; ++leg)
+    {
+        if (contact[leg] == 1)
+        {
+            ctrl_component_.gait_phase_[leg] = cycle_phase[leg] / gait_.duty();
+        }
+        else
+        {
+            ctrl_component_.gait_phase_[leg] = (cycle_phase[leg] - gait_.duty()) / (1 - gait_.duty());
+        }
+    }
+}
 
 void StateMPCTrotting::updateDesiredCommand(const double dt, const RotMat &yaw_rotation_body_to_world)
 {
@@ -323,8 +344,7 @@ Vec34 StateMPCTrotting::buildCurrentFootLeversWorld(const RawBaseState &base_sta
 }
 
 Vec34 StateMPCTrotting::buildTouchdownPositionsWorld(const RotMat &yaw_rotation_body_to_world,
-                                                     const Vec3 &desired_velocity_world,
-                                                     const double desired_yaw_rate,
+                                                     const Vec3 &desired_velocity_world, const double desired_yaw_rate,
                                                      const RawBaseState &base_state) const
 {
     Gait::TouchdownInput touchdown_input;
@@ -391,10 +411,16 @@ Vec34 StateMPCTrotting::sanitizeContactForces(const Vec34 &forces_world, const V
             }
         }
 
-        sanitized(2, leg) = std::clamp(sanitized(2, leg), CentroidalMPC::kMinNormalForce, kMaxNormalForce);
-        const double tangential_limit = kFrictionCoefficient * sanitized(2, leg);
-        sanitized(0, leg) = std::clamp(sanitized(0, leg), -tangential_limit, tangential_limit);
-        sanitized(1, leg) = std::clamp(sanitized(1, leg), -tangential_limit, tangential_limit);
+        sanitized(2, leg) =
+            std::clamp(sanitized(2, leg), CentroidalMPC::kMinNormalForce, CentroidalMPC::kMaxNormalForce);
+        const double tangential_limit = CentroidalMPC::kFrictionCoefficient * sanitized(2, leg);
+        const double tangential_l1 = std::abs(sanitized(0, leg)) + std::abs(sanitized(1, leg));
+        if (tangential_l1 > tangential_limit && tangential_l1 > 1.0e-9)
+        {
+            const double scale = tangential_limit / tangential_l1;
+            sanitized(0, leg) *= scale;
+            sanitized(1, leg) *= scale;
+        }
     }
 
     return sanitized;
@@ -460,8 +486,7 @@ void StateMPCTrotting::commandHoldPosition()
 
 void StateMPCTrotting::commandTorqueControlDefaults()
 {
-    const std::size_t joint_count =
-        std::min<std::size_t>(12, ctrl_interfaces_.joint_torque_command_interface_.size());
+    const std::size_t joint_count = std::min<std::size_t>(12, ctrl_interfaces_.joint_torque_command_interface_.size());
 
     for (std::size_t i = 0; i < joint_count; ++i)
     {
@@ -490,8 +515,7 @@ void StateMPCTrotting::commandTorqueControlDefaults()
 
 void StateMPCTrotting::writeJointTorques(const Vec12 &joint_torques)
 {
-    const std::size_t joint_count =
-        std::min<std::size_t>(12, ctrl_interfaces_.joint_torque_command_interface_.size());
+    const std::size_t joint_count = std::min<std::size_t>(12, ctrl_interfaces_.joint_torque_command_interface_.size());
 
     for (std::size_t i = 0; i < joint_count; ++i)
     {
