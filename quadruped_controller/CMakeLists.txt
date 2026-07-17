@@ -42,11 +42,14 @@ add_library(${PROJECT_NAME} SHARED
     src/FSM/StateFixedDown.cpp
     src/FSM/StateFreeStand.cpp
     src/FSM/StateMPCTrotting.cpp
+    src/FSM/StateMPCWBCTrotting.cpp
     src/FSM/StateFixedStand.cpp
     src/robot/QuadrupedRobot.cpp
     src/control/LowPassFilter.cpp
     src/control/Estimator.cpp
+    src/control/ContactStateManager.cpp
     src/control/LegController.cpp
+    src/control/WbcController.cpp
     src/gait/Gait.cpp
     src/robot/go2_robot_data/PinGo2Model.cpp
     src/mpc/ComTrajectory.cpp
@@ -106,6 +109,29 @@ if(BUILD_TESTING)
   set(ament_cmake_copyright_FOUND TRUE)
 
   set(ament_cmake_cpplint_FOUND TRUE)
+
+  add_executable(
+    wbc_controller_debug
+    src/control/WbcControllerDebug.cpp
+  )
+
+  add_executable(
+    contact_state_manager_debug
+    src/control/ContactStateManagerDebug.cpp
+  )
+
+  target_link_libraries(
+    wbc_controller_debug
+    PRIVATE
+    ${PROJECT_NAME}
+  )
+
+  target_link_libraries(
+    contact_state_manager_debug
+    PRIVATE
+    ${PROJECT_NAME}
+  )
+
   ament_lint_auto_find_test_dependencies()
 endif()
 

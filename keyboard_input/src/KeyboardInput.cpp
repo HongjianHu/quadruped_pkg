@@ -19,7 +19,8 @@ KeyboardInput::KeyboardInput() : Node("keyboard_input_node")
     new_tio_.c_lflag &= (~ICANON & ~ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio_);
     RCLCPP_INFO(get_logger(), "Keyboard input node started.");
-    RCLCPP_INFO(get_logger(), "Mode keys: 1 PASSIVE, 2 FIXEDSTAND, 4 FREESTAND, 6 MPC_TROTTING.");
+    RCLCPP_INFO(get_logger(),
+                "Mode keys: 1 PASSIVE, 2 FIXEDSTAND, 4 FREESTAND, 6 MPC_TROTTING, 7 MPC_WBC_TROTTING.");
     RCLCPP_INFO(get_logger(), "FreeStand keys: A/D roll, W/S pitch, J/L yaw, I/K height.");
     RCLCPP_INFO(get_logger(), "MPC keys: A/D lx, W/S ly, J/L yaw rate, I/K height.");
     RCLCPP_INFO(get_logger(), "Space resets command axes.");
@@ -45,6 +46,8 @@ void KeyboardInput::timer_callback()
             reset_count_ = 100;
         }
         publisher_->publish(inputs_);
+        RCLCPP_INFO(get_logger(), "Published key='%c': command=%d lx=%.2f ly=%.2f rx=%.2f ry=%.2f", key,
+                    inputs_.command, inputs_.lx, inputs_.ly, inputs_.rx, inputs_.ry);
         just_published_ = true;
     }
     else
@@ -59,6 +62,8 @@ void KeyboardInput::timer_callback()
                 {
                     inputs_.command = 0;
                     publisher_->publish(inputs_);
+                    RCLCPP_INFO(get_logger(), "Command pulse reset: command=%d lx=%.2f ly=%.2f rx=%.2f ry=%.2f",
+                                inputs_.command, inputs_.lx, inputs_.ly, inputs_.rx, inputs_.ry);
                 }
             }
         }
@@ -80,6 +85,9 @@ void KeyboardInput::check_command(const char key)
         break;
     case '6':
         inputs_.command = 6;
+        break;
+    case '7':
+        inputs_.command = 7;
         break;
     case ' ':
         inputs_.lx = 0;

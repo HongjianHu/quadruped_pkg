@@ -209,6 +209,7 @@ controller_interface::CallbackReturn QuadrupedController::on_activate(const rclc
     state_list_.fixedStand = std::make_shared<StateFixedStand>(ctrl_interfaces_, stand_pos_, stand_kp_, stand_kd_);
     state_list_.freeStand = std::make_shared<StateFreeStand>(ctrl_interfaces_, ctrl_component_);
     state_list_.mpcTrotting = std::make_shared<StateMPCTrotting>(ctrl_interfaces_, ctrl_component_);
+    state_list_.mpcWbcTrotting = std::make_shared<StateMPCWBCTrotting>(ctrl_interfaces_, ctrl_component_);
 
     current_state_ = state_list_.passive;
     current_state_->enter();
@@ -426,6 +427,8 @@ std::shared_ptr<FSMState> QuadrupedController::getNextState(FSMStateName stateNa
         return state_list_.freeStand;
     case FSMStateName::MPC_TROTTING:
         return state_list_.mpcTrotting;
+    case FSMStateName::MPC_WBC_TROTTING:
+        return state_list_.mpcWbcTrotting;
     default:
         return state_list_.invalid;
     }

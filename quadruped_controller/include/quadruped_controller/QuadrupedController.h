@@ -12,6 +12,7 @@
 #include "quadruped_controller/FSM/StateFixedStand.h"
 #include "quadruped_controller/FSM/StateFreeStand.h"
 #include "quadruped_controller/FSM/StateMPCTrotting.h"
+#include "quadruped_controller/FSM/StateMPCWBCTrotting.h"
 #include "quadruped_controller/FSM/StatePassive.h"
 #include "quadruped_controller/common/CtrlInterfaces.h"
 #include "quadruped_controller/control/CtrlComponent.h"
@@ -27,6 +28,7 @@ struct FSMStateList
     std::shared_ptr<StateFixedStand> fixedStand;
     std::shared_ptr<StateFreeStand> freeStand;
     std::shared_ptr<StateMPCTrotting> mpcTrotting;
+    std::shared_ptr<StateMPCWBCTrotting> mpcWbcTrotting;
 };
 
 // ---- 控制器主类 ----

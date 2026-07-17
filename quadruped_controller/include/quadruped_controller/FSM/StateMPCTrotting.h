@@ -39,13 +39,13 @@ class StateMPCTrotting : public FSMState
     static constexpr double kMpcTimeStep = kGaitPeriod / static_cast<double>(kMpcHorizonSteps);
     static constexpr double kMpcHorizonTime = kGaitPeriod;
     static constexpr double kMpcUpdatePeriod = kMpcTimeStep;
-    static constexpr double kGaitDuty = 0.6;
+    static constexpr double kGaitDuty = 0.5;
     static constexpr double kSwingHeight = 0.10;
     static constexpr double kEntryHoldDuration = 1.0;
     static constexpr double kDefaultBaseHeight = 0.27;
     static constexpr double kMinBaseHeight = 0.20;
     static constexpr double kMaxBaseHeight = 0.42;
-    static constexpr double kMaxForwardVelocity = 0.50;
+    static constexpr double kMaxForwardVelocity = 1.00;
     static constexpr double kMaxLateralVelocity = 0.32;
     static constexpr double kMaxYawRate = 0.80;
     static constexpr double kMaxHeightRate = 0.08;

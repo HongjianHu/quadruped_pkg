@@ -1,8 +1,13 @@
 # quadruped_pkg
 
-`quadruped_pkg` is a ROS 2 Humble quadruped-control project for the Unitree Go2 simulation. It combines a Go2 URDF/MuJoCo description, a MuJoCo-backed `ros2_control` hardware interface, a finite-state quadruped controller, Pinocchio-based kinematics/dynamics, and a centroidal-MPC trotting pipeline.
+`quadruped_pkg` is a ROS 2 Humble quadruped-control project for the Unitree Go2 simulation. It combines a Go2 URDF/MuJoCo description, a MuJoCo-backed `ros2_control` hardware interface, Pinocchio-based kinematics and dynamics, centroidal MPC, and whole-body control.
 
-The current workflow is focused on simulation validation: bring the robot up in MuJoCo, switch between standing/free-stand/MPC trotting modes, and inspect the model in RViz and the embedded MuJoCo viewer.
+The project provides two independent trotting pipelines:
+
+- `MPC_TROTTING`: centroidal MPC followed by a Cartesian swing/stance leg controller.
+- `MPC_WBC_TROTTING`: centroidal MPC followed by a whole-body QP controller.
+
+The original MPC controller is preserved as a standalone baseline, allowing the two control architectures to be tested and compared in the same MuJoCo and `ros2_control` framework.
 
 <table>
   <tr>
@@ -29,7 +34,7 @@ The current workflow is focused on simulation validation: bring the robot up in 
 
 - `go2_description`: Go2 URDF/Xacro model, mesh assets, MuJoCo model assets, RViz config, and `ros2_control` hardware configuration.
 - `quadruped_mujoco_hardware`: MuJoCo virtual hardware plugin for `ros2_control`, including joint states, actuator torques, IMU, foot-force interfaces, odometer state, and optional embedded viewer.
-- `quadruped_controller`: Main controller plugin. It includes the FSM states, Go2 Pinocchio model wrapper, gait generation, COM trajectory generation, centroidal MPC, and leg torque control.
+- `quadruped_controller`: Main `ros2_control` controller plugin. It includes the FSM states, Go2 Pinocchio model wrapper, gait and foot-trajectory generation, CoM reference generation, centroidal MPC, the original swing/stance leg controller, and the whole-body QP controller.
 - `quadruped_controller_msgs`: Custom input message used by the keyboard command node.
 - `keyboard_input`: Terminal keyboard node and scripted MPC command scheduler that publish `quadruped_controller_msgs/msg/Inputs` to `/control_input`.
 - `third_party`: Local third-party solver dependencies used by the controller.
@@ -37,13 +42,38 @@ The current workflow is focused on simulation validation: bring the robot up in 
 ## Main Control States
 
 - `PASSIVE`: Zero-torque safe state.
-- `FIXEDSTAND`: Position-controlled standing state.
-- `FREESTAND`: Body pose adjustment state for IK and posture checks.
-- `MPC_TROTTING`: Integrated locomotion state using `ComTrajectory + CentroidalMPC + LegController`.
+- `FIXEDSTAND`: Position-controlled transition to the nominal standing configuration.
+- `FREESTAND`: Body pose adjustment using inverse kinematics.
+- `MPC_TROTTING`: Original locomotion pipeline using `ComTrajectory + CentroidalMPC + LegController`.
+- `MPC_WBC_TROTTING`: Experimental hierarchical locomotion pipeline using `ComTrajectory + CentroidalMPC + WbcController`.
 
 ## Controller Overview
 
-The motion-control stack currently includes:
+```mermaid
+flowchart TD
+    CMD[Keyboard command] --> FSM[Finite-State Machine]
+    FSM --> GAIT[Gait and foot trajectory]
+    FSM --> COM[CoM reference trajectory]
+
+    GAIT --> MPC[Centroidal MPC]
+    COM --> MPC
+    MPC --> FORCE[Desired contact forces]
+
+    FORCE --> LEG[LegController]
+    GAIT --> LEG
+    LEG --> MPCOUT[MPC joint torques]
+
+    FORCE --> WBC[Whole-Body QP]
+    GAIT --> WBC
+    PIN[Pinocchio dynamics and Jacobians] --> WBC
+    WBC --> WBCOUT[WBC joint torques]
+
+    MPCOUT --> ROS[ros2_control command interfaces]
+    WBCOUT --> ROS
+    ROS --> MJ[MuJoCo virtual hardware]
+```
+
+The shared motion-control stack includes:
 
 - **Centroidal MPC (~48 Hz)**  
   Contact-force-based centroidal MPC implemented in C++ with OSQP/OsqpEigen. It solves a convex QP over one gait-cycle prediction horizon, divided into 16 time steps, and outputs optimized ground reaction forces for each foot.
@@ -52,10 +82,59 @@ The motion-control stack currently includes:
   Generates the desired CoM position, velocity, attitude, angular velocity, and foot-lever references for the MPC horizon from user body-frame velocity and yaw-rate commands.
 
 - **Swing/Stance Leg Controller (500 Hz)**  
-  Swing legs use Cartesian-space impedance control with feedforward swing acceleration and Pinocchio-based Jacobian dynamics. Stance legs map the optimized MPC contact forces into joint torques through the foot Jacobian.
+  This is the lower-level controller used by the original `MPC_TROTTING` state. Swing legs use Cartesian-space impedance control with feedforward swing acceleration and Pinocchio-based Jacobian dynamics. Stance legs map the optimized MPC contact forces into joint torques through the foot Jacobian.
+
+- **Whole-Body Controller (500 Hz)**
+  This is the lower-level controller used by `MPC_WBC_TROTTING`. It solves for floating-base acceleration, joint acceleration, and contact forces while enforcing whole-body dynamics, planned contact constraints, friction constraints, normal-force bounds, and joint-torque limits.
 
 - **Gait Scheduler and Foot Trajectory Generator (500 Hz)**  
   Schedules swing/stance timing in `FL FR RL RR` leg order, computes touchdown positions using a Raibert-style foot-placement rule, and generates swing-foot trajectories with a quintic polynomial and adjustable apex height.
+
+## MPC + Whole-Body Control
+
+The MPC+WBC pipeline is implemented as an independent FSM state. It does not replace the runtime behavior of the original `MPC_TROTTING` state.
+
+### WBC Decision Variables
+
+The WBC solves a 30-dimensional quadratic program:
+
+```text
+z = [ddq(18), contact_forces(12)]
+```
+
+- `ddq` contains the 6 floating-base and 12 actuated-joint accelerations.
+- `contact_forces` contains the three-dimensional world-frame contact force of each leg in `FL FR RL RR` order.
+
+### WBC Soft Tasks
+
+The WBC objective contains:
+
+- desired floating-base acceleration tracking;
+- swing-foot acceleration tracking;
+- desired joint-acceleration tracking;
+- MPC contact-force tracking;
+- acceleration and contact-force regularization.
+
+The MPC contact forces are references rather than final actuator commands. The WBC can redistribute them to satisfy whole-body dynamics and actuator constraints.
+
+### WBC Hard Constraints
+
+The QP enforces:
+
+- floating-base rigid-body dynamics;
+- zero acceleration of planned support feet;
+- zero contact force for planned swing legs;
+- a conservative linear friction pyramid;
+- per-leg normal-force bounds;
+- joint-torque limits.
+
+MPC and WBC use the same planned contact mask generated by `Gait`. When the contact mask changes, MPC is updated immediately so that the current MPC force reference and WBC contact constraints remain synchronized.
+
+### WBC Solver
+
+The WBC uses OSQP through OsqpEigen. The sparse Hessian and constraint patterns are initialized once; subsequent control cycles update only matrix values, gradients, and bounds. Warm start is retained during continuous contact phases and reset when the discrete contact set changes.
+
+A solution is accepted only when the solver succeeds and the dynamics, equality, and inequality residuals remain within the configured validation tolerance. The original `LegController` remains available as the fallback torque controller.
 
 ## Prerequisites
 
@@ -197,7 +276,7 @@ python3 scripts/plot_mpc_metrics.py \
   --ref-height 0.27
 ```
 
-The scripted demo includes forward walking, lateral motion, yaw rotation, combined forward turning, and a faster forward segment. With the default MPC scaling, the maximum commanded forward velocity is about `0.50 m/s`.
+The scripted demo includes forward walking, lateral motion, yaw rotation, combined forward turning, and a faster forward segment. The normalized forward command currently maps to a maximum reference of `1.00 m/s`; this command limit should not be interpreted as a validated stable speed for every controller configuration.
 
 ## Keyboard Control
 
@@ -223,7 +302,8 @@ Keep this terminal focused, because it reads directly from stdin.
       <code>1</code>: <code>PASSIVE</code><br/>
       <code>2</code>: <code>FIXEDSTAND</code><br/>
       <code>4</code>: <code>FREESTAND</code><br/>
-      <code>6</code>: <code>MPC_TROTTING</code>
+      <code>6</code>: <code>MPC_TROTTING</code><br/>
+      <code>7</code>: <code>MPC_WBC_TROTTING</code>
     </td>
     <td>
       <code>A</code> / <code>D</code>: roll<br/>
@@ -242,7 +322,28 @@ Keep this terminal focused, because it reads directly from stdin.
   </tr>
 </table>
 
+Recommended test sequence:
+
+1. Press `2` to enter `FIXEDSTAND`.
+2. Wait until the robot reaches the nominal standing posture.
+3. Press `6` to test the original MPC controller, or press `7` to test the MPC+WBC controller.
+4. Use the motion keys to update the normalized velocity and yaw-rate commands.
+5. Press `Space` to clear all command axes.
+6. Press `1` to return to `PASSIVE`.
+
+## Current Development Status
+
+| Pipeline | Status | Notes |
+|---|---|---|
+| MPC + LegController | Stable simulation baseline | Recommended for baseline flat-ground trotting experiments |
+| MPC + WBC | Integrated and runnable | Includes whole-body dynamics, contact-force and joint-torque constraints, solver warm start, residual validation, and fallback torque control |
+| High-speed MPC + WBC | Under tuning | Performance is more sensitive to gait parameters, WBC task weights, swing-foot tracking, and low-level gains |
+| Hardware deployment | Not yet validated | Current locomotion results are based on MuJoCo virtual hardware |
+
 ## What's Next
 
-- **More Robot Models**: extend the current description and MuJoCo hardware pipeline to support additional quadruped models.
-- **Try more controllers**: build upon the current MPC framework by integrating a Whole-Body Control (WBC) layer as the lower-level torque allocation module, forming a hierarchical MPC+WBC architecture for enhanced disturbance rejection. Meanwhile, explore model-free alternatives such as Reinforcement Learning to develop adaptive locomotion policies for challenging unstructured terrains.
+- Tune the MPC+WBC gait parameters, task weights, swing-foot tracking gains, and low-level joint gains for smoother motion and improved high-speed stability.
+- Move controller parameters from compile-time constants into ROS 2 parameter files to make comparison and tuning easier.
+- Extend the current description and MuJoCo hardware pipeline to support additional quadruped models.
+- Prepare the `ros2_control` command and safety interfaces for future deployment on physical hardware.
+- Investigate reinforcement-learning policies as an additional locomotion backend.
